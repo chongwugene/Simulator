@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Residential Wiring Simulator 3D</title>
+    <link rel="stylesheet" href="./styles.css?v=20260601-0024">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Residential wiring simulator 3D</p>
+          <h1>Realistic wiring workbench</h1>
+        </div>
+        <div id="supplyStatus" class="status-strip" aria-live="polite"></div>
+      </header>
+
+      <main class="workspace-layout">
+        <aside class="tool-panel" aria-label="3D simulator tools">
+          <section class="panel-block">
+            <div class="section-title">
+              <h2>Equipment</h2>
+            </div>
+            <div id="equipmentPalette" class="palette-grid"></div>
+          </section>
+
+          <section class="panel-block">
+            <div class="section-title">
+              <h2>Wire Color</h2>
+            </div>
+            <div id="wirePalette" class="wire-palette"></div>
+          </section>
+
+          <section class="panel-block">
+            <div class="section-title">
+              <h2>Bench</h2>
+            </div>
+            <div class="bench-actions">
+              <button type="button" data-action="fit-view" data-help="Center the camera on the workbench without shrinking large custom benches into one view." title="Center the camera on the workbench without shrinking large custom benches into one view.">Center view</button>
+              <button type="button" data-action="bench-larger" data-help="Expand the X and Y grid from the upper-left starting point." title="Expand the X and Y grid from the upper-left starting point.">Larger bench</button>
+              <button type="button" data-action="bench-smaller" data-help="Shrink the X and Y grid from the right and bottom edges." title="Shrink the X and Y grid from the right and bottom edges.">Smaller bench</button>
+              <button type="button" data-action="save-state" data-help="Save the current board, equipment, wires, bench size, and power state in this browser." title="Save the current board, equipment, wires, bench size, and power state in this browser.">Save</button>
+              <button type="button" data-action="load-state" data-help="Load the last saved board state from this browser." title="Load the last saved board state from this browser.">Load</button>
+              <button type="button" data-action="reset-scene" data-help="Clear the board back to only the protected power cable/source." title="Clear the board back to only the protected power cable/source.">Reset</button>
+              <button type="button" data-action="clear-wires" data-help="Remove all wire connections while leaving equipment in place." title="Remove all wire connections while leaving equipment in place.">Clear wires</button>
+            </div>
+            <div class="bench-custom" aria-label="Custom bench size">
+              <label>
+                <span>X</span>
+                <input id="benchWidth" type="number" min="5" max="60" step="1" inputmode="numeric">
+              </label>
+              <label>
+                <span>Y</span>
+                <input id="benchDepth" type="number" min="5" max="60" step="1" inputmode="numeric">
+              </label>
+              <button type="button" data-action="bench-apply" data-help="Set a custom X by Y grid size, up to 60 grid units." title="Set a custom X by Y grid size, up to 60 grid units.">Apply size</button>
+            </div>
+            <div class="bench-pan" aria-label="Bench view position">
+              <label>
+                <span>View X</span>
+                <input id="benchPanX" type="range" min="-5" max="5" step="0.25" value="0">
+              </label>
+              <label>
+                <span>View Y</span>
+                <input id="benchPanZ" type="range" min="-3.5" max="3.5" step="0.25" value="0">
+              </label>
+            </div>
+            <div id="benchSize" class="bench-size" aria-live="polite"></div>
+          </section>
+        </aside>
+
+        <section class="scene-panel" aria-label="3D simulator scene">
+          <div class="scene-toolbar">
+            <div id="modeHint" class="mode-hint">Click equipment to add it. Drag empty space to select multiple objects. Alt/right-drag rotates.</div>
+            <div class="toolbar-cluster">
+              <button type="button" data-action="undo" data-help="Undo the last board change." title="Undo the last board change.">Undo</button>
+              <button type="button" data-action="redo" data-help="Redo the last undone board change." title="Redo the last undone board change.">Redo</button>
+              <button id="wiringModeButton" type="button" data-action="toggle-wiring-mode" aria-pressed="false" data-help="Lock equipment placement and movement so clicks only create wire connections." title="Lock equipment placement and movement so clicks only create wire connections.">Wiring mode</button>
+              <button type="button" data-action="power-cycle" data-help="Run circuit analysis and show a concise result in the message bar, diagnostics, and event log." title="Run circuit analysis and show a concise result in the message bar, diagnostics, and event log.">Analyze</button>
+              <button type="button" data-action="trip-breaker" data-help="Manually simulate the breaker opening." title="Manually simulate the breaker opening.">Trip breaker</button>
+              <button type="button" data-action="reset-breaker" data-help="Reset the breaker and the protected source GFCI after fixing a fault." title="Reset the breaker and the protected source GFCI after fixing a fault.">Reset power</button>
+            </div>
+          </div>
+          <div id="sceneMount" class="scene-mount"></div>
+        </section>
+
+        <aside class="inspector" aria-label="3D simulator inspector">
+          <section class="panel-block">
+            <div class="section-title">
+              <h2>Selection</h2>
+            </div>
+            <div id="selectionPanel" class="selection-panel"></div>
+          </section>
+
+          <section class="panel-block">
+            <div class="section-title">
+              <h2>Diagnostics</h2>
+            </div>
+            <div id="diagnostics" class="diagnostics" aria-live="polite"></div>
+          </section>
+
+          <section class="panel-block">
+            <div class="section-title">
+              <h2>Event Log</h2>
+            </div>
+            <div id="eventLog" class="event-log"></div>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <script type="module" src="./src/app.js?v=20260601-0024"></script>
+  </body>
+</html>

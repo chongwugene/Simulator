@@ -1,0 +1,8 @@
+.DS_Store
+node_modules/
+.wrangler/
+.env
+.env.*
+3d/vendor/
+3d/screenshots/
+3d/concepts/ai-generated-moodboards-archive/*.png

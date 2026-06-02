@@ -1,0 +1,218 @@
+{
+  "version": 1,
+  "visualDirection": "fresh, clean, brand-new residential electrical hardware only",
+  "accuracyPolicy": "Generated concept art is visual inspiration only. Geometry-critical 3D assets must be modeled from this manifest and verified against terminal counts before approval.",
+  "assets": [
+    {
+      "id": "standard-outlet",
+      "label": "Standard Outlet",
+      "category": "outlet",
+      "body": "white duplex receptacle, brand-new nylon/plastic face, galvanized mounting yoke",
+      "terminals": [
+        { "id": "hot-top", "label": "Top hot", "color": "brass", "role": "hot" },
+        { "id": "hot-bottom", "label": "Bottom hot", "color": "brass", "role": "hot" },
+        { "id": "neutral-top", "label": "Top neutral", "color": "silver", "role": "neutral" },
+        { "id": "neutral-bottom", "label": "Bottom neutral", "color": "silver", "role": "neutral" },
+        { "id": "ground", "label": "Ground", "color": "green", "role": "ground" }
+      ],
+      "tabs": [
+        { "side": "hot", "state": "intact" },
+        { "side": "neutral", "state": "intact" }
+      ],
+      "terminalCount": 5
+    },
+    {
+      "id": "half-hot-outlet",
+      "label": "Half-Hot Outlet",
+      "category": "outlet",
+      "body": "white duplex receptacle, brand-new nylon/plastic face, galvanized mounting yoke",
+      "terminals": [
+        { "id": "hot-top", "label": "Top hot", "color": "brass", "role": "hot" },
+        { "id": "hot-bottom", "label": "Bottom hot", "color": "brass", "role": "hot" },
+        { "id": "neutral-top", "label": "Top neutral", "color": "silver", "role": "neutral" },
+        { "id": "neutral-bottom", "label": "Bottom neutral", "color": "silver", "role": "neutral" },
+        { "id": "ground", "label": "Ground", "color": "green", "role": "ground" }
+      ],
+      "tabs": [
+        { "side": "hot", "state": "removed" },
+        { "side": "neutral", "state": "intact" }
+      ],
+      "terminalCount": 5
+    },
+    {
+      "id": "gfci-outlet",
+      "label": "GFCI Outlet",
+      "category": "outlet",
+      "body": "white GFCI receptacle, brand-new nylon/plastic face, RESET and TEST button text on the front face",
+      "frontMarkings": [
+        { "label": "TEST", "location": "upper center button" },
+        { "label": "RESET", "location": "lower center button" }
+      ],
+      "rearAndSideMarkings": [
+        { "label": "LINE / IN", "location": "factory-labeled incoming feed terminal pair" },
+        { "label": "LOAD / OUT", "location": "factory-labeled downstream protected terminal pair" }
+      ],
+      "terminals": [
+        { "id": "line-hot", "label": "LINE hot / IN hot", "color": "brass", "role": "hot", "placement": "brass LINE/IN side terminal" },
+        { "id": "load-hot", "label": "LOAD hot / OUT hot", "color": "brass", "role": "hot", "placement": "brass LOAD/OUT side terminal" },
+        { "id": "line-neutral", "label": "LINE neutral / IN neutral", "color": "silver", "role": "neutral", "placement": "silver LINE/IN side terminal" },
+        { "id": "load-neutral", "label": "LOAD neutral / OUT neutral", "color": "silver", "role": "neutral", "placement": "silver LOAD/OUT side terminal" },
+        { "id": "ground", "label": "Ground", "color": "green", "role": "ground", "placement": "green ground terminal" }
+      ],
+      "terminalCount": 5
+    },
+    {
+      "id": "single-pole-switch",
+      "label": "Single-Pole Switch",
+      "category": "switch",
+      "body": "white toggle switch, brand-new nylon/plastic body, galvanized mounting yoke",
+      "terminals": [
+        { "id": "line", "label": "Line/feed", "color": "brass", "role": "hot" },
+        { "id": "load", "label": "Switched leg", "color": "brass", "role": "hot" },
+        { "id": "ground", "label": "Ground", "color": "green", "role": "ground" }
+      ],
+      "terminalCount": 3,
+      "mustNotHave": ["neutral terminal", "traveler terminal", "common terminal"]
+    },
+    {
+      "id": "three-way-switch",
+      "label": "3-Way Switch",
+      "category": "switch",
+      "body": "white 3-way toggle switch, brand-new nylon/plastic body, galvanized mounting yoke",
+      "layoutReference": "Use the attached user reference: green ground screw high on the left side/yoke, two brass traveler screws at the upper left and upper right side positions, and one black common screw at the lower right side position.",
+      "terminals": [
+        { "id": "traveler-left", "label": "Traveler", "color": "brass", "role": "traveler", "placement": "upper left side screw" },
+        { "id": "traveler-right", "label": "Traveler", "color": "brass", "role": "traveler", "placement": "upper right side screw" },
+        { "id": "common", "label": "Common", "color": "black", "role": "hot", "placement": "lower right side screw" },
+        { "id": "ground", "label": "Ground", "color": "green", "role": "ground", "placement": "upper left ground screw on yoke/side" }
+      ],
+      "terminalCount": 4,
+      "mustNotHave": ["neutral terminal", "fourth traveler terminal"]
+    },
+    {
+      "id": "four-way-switch",
+      "label": "4-Way Switch",
+      "category": "switch",
+      "body": "white 4-way toggle switch, brand-new nylon/plastic body, galvanized mounting yoke",
+      "layoutReference": "Use the attached user reference: two brass traveler screws across the upper left and upper right side positions, two black traveler screws across the lower left and lower right side positions, and one green ground screw low on the left side/yoke. No common screw.",
+      "terminals": [
+        { "id": "traveler-upper-left", "label": "Traveler", "color": "brass", "role": "traveler", "placement": "upper left side screw" },
+        { "id": "traveler-upper-right", "label": "Traveler", "color": "brass", "role": "traveler", "placement": "upper right side screw" },
+        { "id": "traveler-lower-left", "label": "Traveler", "color": "black", "role": "traveler", "placement": "lower left side screw" },
+        { "id": "traveler-lower-right", "label": "Traveler", "color": "black", "role": "traveler", "placement": "lower right side screw" },
+        { "id": "ground", "label": "Ground", "color": "green", "role": "ground", "placement": "lower left ground screw on yoke/side" }
+      ],
+      "terminalCount": 5,
+      "mustNotHave": ["common terminal", "neutral terminal"]
+    },
+    {
+      "id": "black-hot-wire",
+      "label": "Black Hot Wire",
+      "category": "wire",
+      "body": "fresh black insulated conductor with bright stripped copper ends",
+      "terminals": [
+        { "id": "end-a", "label": "Copper end", "color": "copper", "role": "connectable-end" },
+        { "id": "end-b", "label": "Copper end", "color": "copper", "role": "connectable-end" }
+      ]
+    },
+    {
+      "id": "red-hot-wire",
+      "label": "Red Traveler/Hot Wire",
+      "category": "wire",
+      "body": "fresh red insulated conductor with bright stripped copper ends",
+      "terminals": [
+        { "id": "end-a", "label": "Copper end", "color": "copper", "role": "connectable-end" },
+        { "id": "end-b", "label": "Copper end", "color": "copper", "role": "connectable-end" }
+      ]
+    },
+    {
+      "id": "white-neutral-wire",
+      "label": "White Neutral Wire",
+      "category": "wire",
+      "body": "fresh white insulated conductor with bright stripped copper ends",
+      "terminals": [
+        { "id": "end-a", "label": "Copper end", "color": "copper", "role": "connectable-end" },
+        { "id": "end-b", "label": "Copper end", "color": "copper", "role": "connectable-end" }
+      ]
+    },
+    {
+      "id": "green-ground-wire",
+      "label": "Green Ground Wire",
+      "category": "wire",
+      "body": "fresh green insulated grounding conductor with bright stripped copper ends",
+      "terminals": [
+        { "id": "end-a", "label": "Copper end", "color": "copper", "role": "connectable-end" },
+        { "id": "end-b", "label": "Copper end", "color": "copper", "role": "connectable-end" }
+      ]
+    },
+    {
+      "id": "wire-nut",
+      "label": "Wire Nut",
+      "category": "connector",
+      "body": "brand-new yellow/orange twist-on wire connector with ribbed shell"
+    },
+    {
+      "id": "romex-2",
+      "label": "2-Wire NM-B Cable",
+      "category": "cable",
+      "body": "fresh beige NM-B jacket with black, white, and bare copper grounding conductors emerging from both ends",
+      "conductors": ["black hot IN/OUT", "white neutral IN/OUT", "bare copper ground IN/OUT"],
+      "continuity": "matching conductor colors are internally continuous from IN to OUT"
+    },
+    {
+      "id": "romex-3",
+      "label": "3-Wire NM-B Cable",
+      "category": "cable",
+      "body": "fresh beige NM-B jacket with black, red, white, and bare copper grounding conductors emerging from both ends",
+      "conductors": ["black hot IN/OUT", "red traveler/hot IN/OUT", "white neutral IN/OUT", "bare copper ground IN/OUT"],
+      "continuity": "matching conductor colors are internally continuous from IN to OUT"
+    },
+    {
+      "id": "metal-4x4-box",
+      "label": "4x4 Metal Box",
+      "category": "box",
+      "body": "brand-new galvanized square metal electrical box with knockouts and one green ground screw",
+      "terminals": [
+        { "id": "ground", "label": "Box ground screw", "color": "green", "role": "ground" }
+      ],
+      "terminalCount": 1
+    },
+    {
+      "id": "source-module",
+      "label": "Power Cable / Source Module",
+      "category": "source",
+      "body": "clean training-source module for simulator power-in, not a real household installable device",
+      "terminals": [
+        { "id": "hot", "label": "Hot", "color": "black", "role": "hot" },
+        { "id": "neutral", "label": "Neutral", "color": "white", "role": "neutral" },
+        { "id": "ground", "label": "Ground", "color": "green", "role": "ground" }
+      ],
+      "terminalCount": 3
+    },
+    {
+      "id": "protected-outlet-source",
+      "label": "Protected Outlet Source",
+      "category": "source",
+      "body": "clean GFCI-protected workbench outlet and cord source representation"
+    },
+    {
+      "id": "keyless-lampholder",
+      "label": "Keyless Lampholder",
+      "category": "lighting",
+      "body": "brand-new white porcelain keyless lampholder",
+      "terminals": [
+        { "id": "hot", "label": "Hot", "color": "brass", "role": "hot" },
+        { "id": "neutral", "label": "Neutral", "color": "silver", "role": "neutral" }
+      ],
+      "terminalCount": 2
+    },
+    {
+      "id": "socket-lightbulb",
+      "label": "Plug-In Bulb",
+      "category": "lighting",
+      "body": "clean small plug-in/receptacle test light asset with clear bulb and two plug blades",
+      "interaction": "not wireable; drag into the top or bottom receptacle of a standard, half-hot, or GFCI outlet to insert, and drag away to detach",
+      "terminalCount": 0
+    }
+  ]
+}

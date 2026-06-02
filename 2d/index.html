@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Residential Wiring Simulator</title>
+    <script>
+      window.__SIM_ASSET_VERSION__ = String(Date.now());
+      document.write(`<link rel="stylesheet" href="./styles.css?v=${window.__SIM_ASSET_VERSION__}">`);
+    </script>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Residential wiring simulator</p>
+          <h1>Outlet, switch, and protected-supply workbench</h1>
+        </div>
+        <div id="supplyStatus" class="status-strip" aria-live="polite"></div>
+      </header>
+
+      <main class="layout">
+        <aside class="tool-panel" aria-label="Tool palette">
+          <section class="panel-section">
+            <div class="section-heading">
+              <h2>Tools</h2>
+            </div>
+            <div id="toolPalette" class="tool-grid"></div>
+          </section>
+
+          <section class="panel-section">
+            <div class="section-heading">
+              <h2>Devices</h2>
+            </div>
+            <div id="devicePalette" class="device-grid"></div>
+          </section>
+
+        </aside>
+
+        <section class="workspace">
+          <div id="supplyRig" class="supply-rig" aria-label="Upstream protected supply">
+            <div class="rig-unit breaker">
+              <span class="unit-label">Breaker panel</span>
+              <span id="breakerLamp" class="lamp-dot"></span>
+              <div id="breakerActions" class="rig-actions"></div>
+            </div>
+            <div class="rig-link"></div>
+            <div class="rig-unit gfci">
+              <span class="unit-label">Upstream GFCI</span>
+              <span id="upstreamGfciLamp" class="lamp-dot"></span>
+              <div id="upstreamGfciActions" class="rig-actions"></div>
+            </div>
+            <div class="rig-link"></div>
+            <div class="rig-unit outlet">
+              <span class="unit-label">Protected outlet</span>
+              <span class="plug-face"></span>
+            </div>
+            <div class="rig-link cord-link"></div>
+            <div class="rig-unit cord">
+              <span class="unit-label">Power cable</span>
+              <span class="cord-wires">
+                <i class="wire black"></i>
+                <i class="wire white"></i>
+                <i class="wire green"></i>
+              </span>
+            </div>
+          </div>
+
+          <div id="workspaceToolbar" class="workspace-toolbar" aria-label="Workspace controls">
+            <div class="workspace-actions" aria-label="File and history actions">
+              <button id="undoButton" type="button" class="toolbar-button" data-action="undo" title="Undo last action" disabled>Undo</button>
+              <button id="redoButton" type="button" class="toolbar-button" data-action="redo" title="Redo last undone action" disabled>Redo</button>
+              <button type="button" class="toolbar-button" data-action="save-state" title="Save this workbench in the browser">Save</button>
+              <button id="loadButton" type="button" class="toolbar-button" data-action="load-state" title="Load the saved workbench">Load</button>
+              <button type="button" class="toolbar-button" data-action="export-state-file" title="Download this workbench as a file">Save file</button>
+              <button type="button" class="toolbar-button" data-action="import-state-file" title="Load a workbench file">Load file</button>
+              <input id="stateFileInput" class="visually-hidden" type="file" accept=".json,application/json">
+              <button id="wireLayerModeButton" type="button" class="toolbar-button" data-action="toggle-wire-layer-mode" title="Toggle whether wire paths sit behind devices">Wires front</button>
+              <button type="button" class="toolbar-button danger" data-action="clear-board" title="Clear the workbench">Clear board</button>
+            </div>
+            <div class="bench-controls" aria-label="Bench size and zoom controls">
+              <button type="button" class="toolbar-button" data-action="shrink-bench" title="Shrink the bench">Shrink</button>
+              <button type="button" class="toolbar-button" data-action="expand-bench" title="Expand the bench">Expand</button>
+              <label>X <input id="benchWidthInput" type="number" min="520" max="4000" step="20" value="1000" aria-label="Bench width"></label>
+              <label>Y <input id="benchHeightInput" type="number" min="360" max="3000" step="20" value="620" aria-label="Bench height"></label>
+              <button type="button" class="toolbar-button" data-action="apply-bench-size" title="Apply custom bench size">Apply</button>
+              <button type="button" class="toolbar-button icon-button" data-action="zoom-out" title="Zoom out">-</button>
+              <span id="benchZoomLabel" class="zoom-label">100%</span>
+              <button type="button" class="toolbar-button icon-button" data-action="zoom-in" title="Zoom in">+</button>
+              <button type="button" class="toolbar-button" data-action="reset-bench-size" title="Reset bench size and zoom">Reset view</button>
+            </div>
+            <label class="grid-color-control" for="gridColorPicker">
+              <span>Grid color</span>
+              <input id="gridColorPicker" type="color" value="#f8fafc">
+            </label>
+            <input id="gridColorHex" class="grid-color-hex" type="text" inputmode="text" value="#f8fafc" aria-label="Grid color hex value">
+            <div class="grid-rgb-group" aria-label="Grid RGB color values">
+              <label>R <input id="gridColorR" type="number" min="0" max="255" value="248"></label>
+              <label>G <input id="gridColorG" type="number" min="0" max="255" value="250"></label>
+              <label>B <input id="gridColorB" type="number" min="0" max="255" value="252"></label>
+            </div>
+            <button type="button" class="toolbar-button" data-action="reset-grid-color">Reset</button>
+          </div>
+
+          <div id="sandboxViewport" class="sandbox-viewport" aria-label="Scrollable wiring bench">
+            <div id="sandboxScrollSpace" class="sandbox-scroll-space">
+              <div id="sandbox" class="sandbox" aria-label="Wiring sandbox">
+                <svg id="wireLayer" class="wire-layer" viewBox="0 0 1000 620" preserveAspectRatio="none" aria-hidden="true"></svg>
+                <div class="supply-port">
+                  <span>Supply</span>
+                </div>
+                <div id="boxLayer" class="box-layer"></div>
+                <svg id="selectedWireLayer" class="selected-wire-layer" viewBox="0 0 1000 620" preserveAspectRatio="none" aria-hidden="true"></svg>
+                <div id="selectionMarquee" class="selection-marquee" hidden></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <aside class="inspector" aria-label="Selected box inspector">
+          <section id="boxInspector" class="panel-section"></section>
+          <section class="panel-section">
+            <div class="section-heading">
+              <h2>Diagnostics</h2>
+            </div>
+            <div id="diagnostics" class="diagnostics" aria-live="polite"></div>
+            <div id="diagnosticChat" class="diagnostic-chat">
+              <div id="diagnosticChatMessages" class="chat-messages" aria-live="polite"></div>
+              <div id="diagnosticProposal" class="diagnostic-proposal"></div>
+              <form id="diagnosticChatForm" class="chat-form">
+                <input id="diagnosticChatInput" type="text" autocomplete="off" placeholder="Ask why this diagnostic was shown">
+                <button type="submit">Ask</button>
+              </form>
+              <div id="diagnosticChatStatus" class="chat-status"></div>
+            </div>
+          </section>
+          <section class="panel-section">
+            <div class="section-heading">
+              <h2>Event Log</h2>
+            </div>
+            <div id="eventLog" class="event-log"></div>
+          </section>
+        </aside>
+      </main>
+
+      <div id="contextMenu" class="context-menu" hidden>
+        <button type="button" data-action="delete-selected">Delete item</button>
+      </div>
+    </div>
+
+    <script>
+      document.write(`<script src="./app.js?v=${window.__SIM_ASSET_VERSION__}"><\/script>`);
+    </script>
+  </body>
+</html>
