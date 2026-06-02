@@ -2068,13 +2068,13 @@
 
   function renderPalettes() {
     el.toolPalette.innerHTML = renderPaletteGroups(TOOL_PALETTE, (tool) => `
-      <button class="tool-button palette-button" type="button" data-tool="${tool.id}" title="${escapeHtml(tool.label)}">
+      <button class="tool-button palette-button tool-${tool.id}" type="button" data-tool="${tool.id}" title="${escapeHtml(tool.label)}" aria-label="${escapeHtml(tool.label)}">
         <span class="palette-image">${renderToolArt(tool)}</span>
         <span class="palette-label">${escapeHtml(tool.shortLabel || tool.label)}</span>
       </button>
     `);
     el.devicePalette.innerHTML = renderPaletteGroups(DEVICE_PALETTE, (entry) => `
-      <button class="device-button palette-button" type="button" data-device="${entry.type}" title="${escapeHtml(DEVICE_DEFS[entry.type].label)}">
+      <button class="device-button palette-button device-${entry.type}" type="button" data-device="${entry.type}" title="${escapeHtml(DEVICE_DEFS[entry.type].label)}" aria-label="${escapeHtml(DEVICE_DEFS[entry.type].label)}">
         <span class="palette-image">${renderDeviceArt(entry.type)}</span>
         <span class="palette-label">${escapeHtml(entry.shortLabel || DEVICE_DEFS[entry.type].label)}</span>
       </button>
@@ -2099,6 +2099,15 @@
         </div>
       </div>
     `).join("");
+  }
+
+  function uiIcon(name) {
+    return `<svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#icon-${escapeHtml(name)}"></use></svg>`;
+  }
+
+  function setControlContent(button, iconName, label) {
+    if (!button) return;
+    button.innerHTML = `${uiIcon(iconName)}<span class="cmd-label">${escapeHtml(label)}</span>`;
   }
 
   function renderBenchControls() {
@@ -2150,7 +2159,7 @@
   function renderWireLayerModeControl() {
     el.sandbox.classList.toggle("wires-behind-devices", state.wiresBehindDevices);
     if (!el.wireLayerModeButton) return;
-    el.wireLayerModeButton.textContent = state.wiresBehindDevices ? "Wires behind" : "Wires front";
+    setControlContent(el.wireLayerModeButton, "layers", state.wiresBehindDevices ? "Wires behind" : "Wires front");
     el.wireLayerModeButton.classList.toggle("mode-on", state.wiresBehindDevices);
     el.wireLayerModeButton.setAttribute(
       "aria-pressed",
@@ -2167,6 +2176,7 @@
     el.sandbox.dataset.probeMode = mode || "";
     if (el.groundFaultProbeButton) {
       const active = mode === "ground-fault";
+      setControlContent(el.groundFaultProbeButton, "shield", "GFCI probe");
       el.groundFaultProbeButton.classList.toggle("mode-on", active);
       el.groundFaultProbeButton.setAttribute("aria-pressed", active ? "true" : "false");
       el.groundFaultProbeButton.title = active
@@ -2175,6 +2185,7 @@
     }
     if (el.lineShortProbeButton) {
       const active = mode === "line-neutral";
+      setControlContent(el.lineShortProbeButton, "zap", "L-N short");
       el.lineShortProbeButton.classList.toggle("mode-on", active);
       el.lineShortProbeButton.setAttribute("aria-pressed", active ? "true" : "false");
       el.lineShortProbeButton.title = active
@@ -2183,18 +2194,18 @@
     }
     if (el.clearShortsButton) {
       el.clearShortsButton.disabled = state.testFaults.length === 0;
-      el.clearShortsButton.textContent = state.testFaults.length ? `Clear faults (${state.testFaults.length})` : "Clear faults";
+      setControlContent(el.clearShortsButton, "eraser", state.testFaults.length ? `Clear faults (${state.testFaults.length})` : "Clear faults");
     }
   }
 
   function renderSupplyActions() {
     el.breakerActions.innerHTML = `
-      <button type="button" data-action="toggle-breaker">${state.upstream.breakerOn ? "Turn breaker off" : "Turn breaker on"}</button>
-      <button type="button" data-action="reset-breaker">Reset breaker</button>
+      <button type="button" data-action="toggle-breaker">${uiIcon("power")}<span>${state.upstream.breakerOn ? "Breaker off" : "Breaker on"}</span></button>
+      <button type="button" data-action="reset-breaker">${uiIcon("reset")}<span>Reset</span></button>
     `;
     el.upstreamGfciActions.innerHTML = `
-      <button type="button" data-action="test-upstream-gfci">Test GFCI</button>
-      <button type="button" data-action="reset-upstream-gfci">Reset GFCI</button>
+      <button type="button" data-action="test-upstream-gfci">${uiIcon("shield")}<span>Test</span></button>
+      <button type="button" data-action="reset-upstream-gfci">${uiIcon("reset")}<span>Reset</span></button>
     `;
   }
 
@@ -2703,21 +2714,22 @@
     if (!device) return "";
     const hasFault = deviceHasActiveTestFault(device);
     let controls = "";
+    const faultIcon = activeFaultProbeMode() === "line-neutral" ? "zap" : "shield";
     if (isOutletDevice(device)) {
       controls = `
-        <button type="button" data-action="short-selected-top">${activeFaultProbeMode() === "line-neutral" ? "L-N short top" : "Ground-fault top"}</button>
-        <button type="button" data-action="short-selected-bottom">${activeFaultProbeMode() === "line-neutral" ? "L-N short bottom" : "Ground-fault bottom"}</button>
+        <button type="button" data-action="short-selected-top">${uiIcon(faultIcon)}<span>${activeFaultProbeMode() === "line-neutral" ? "L-N top" : "Ground top"}</span></button>
+        <button type="button" data-action="short-selected-bottom">${uiIcon(faultIcon)}<span>${activeFaultProbeMode() === "line-neutral" ? "L-N bottom" : "Ground bottom"}</span></button>
       `;
     } else if (device.type === "lightBulb") {
-      controls = `<button type="button" data-action="short-selected-device">${activeFaultProbeMode() === "line-neutral" ? "L-N short bulb" : "Ground-fault bulb"}</button>`;
+      controls = `<button type="button" data-action="short-selected-device">${uiIcon(faultIcon)}<span>${activeFaultProbeMode() === "line-neutral" ? "L-N bulb" : "Ground bulb"}</span></button>`;
     } else if (device.type === "socketLight" && device.pluggedTarget) {
-      controls = `<button type="button" data-action="short-selected-device">${activeFaultProbeMode() === "line-neutral" ? "L-N short plugged receptacle" : "Ground-fault plugged receptacle"}</button>`;
+      controls = `<button type="button" data-action="short-selected-device">${uiIcon(faultIcon)}<span>${activeFaultProbeMode() === "line-neutral" ? "L-N receptacle" : "Ground receptacle"}</span></button>`;
     }
     if (!controls && !hasFault) return "";
     return `
       <div class="button-row fault-controls">
         ${controls}
-        ${hasFault ? `<button type="button" data-action="clear-selected-shorts">Clear this fault</button>` : ""}
+        ${hasFault ? `<button type="button" data-action="clear-selected-shorts">${uiIcon("eraser")}<span>Clear fault</span></button>` : ""}
       </div>
     `;
   }

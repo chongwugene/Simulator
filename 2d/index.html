@@ -13,6 +13,30 @@
     </script>
   </head>
   <body>
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="icon-undo" viewBox="0 0 24 24"><path d="M9 7H4v5"/><path d="M4.5 11.5A8 8 0 1 0 7 6.7"/></symbol>
+      <symbol id="icon-redo" viewBox="0 0 24 24"><path d="M15 7h5v5"/><path d="M19.5 11.5A8 8 0 1 1 17 6.7"/></symbol>
+      <symbol id="icon-save" viewBox="0 0 24 24"><path d="M5 4h12l2 2v16H5z"/><path d="M8 4v6h8V4"/><path d="M8 18h8"/></symbol>
+      <symbol id="icon-folder" viewBox="0 0 24 24"><path d="M3 7h7l2 2h9v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 11h18"/></symbol>
+      <symbol id="icon-download" viewBox="0 0 24 24"><path d="M12 3v11"/><path d="m8 10 4 4 4-4"/><path d="M5 19h14"/></symbol>
+      <symbol id="icon-upload" viewBox="0 0 24 24"><path d="M12 21V10"/><path d="m8 14 4-4 4 4"/><path d="M5 5h14"/></symbol>
+      <symbol id="icon-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 12 9 5 9-5"/><path d="m3 16 9 5 9-5"/></symbol>
+      <symbol id="icon-shield" viewBox="0 0 24 24"><path d="M12 3 19 6v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/><path d="M9 12h6"/></symbol>
+      <symbol id="icon-zap" viewBox="0 0 24 24"><path d="m13 2-8 12h7l-1 8 8-12h-7z"/></symbol>
+      <symbol id="icon-eraser" viewBox="0 0 24 24"><path d="m4 16 8-8 7 7-5 5H8z"/><path d="M13 20h8"/></symbol>
+      <symbol id="icon-zoom-out" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M16 16l5 5"/><path d="M7.5 10.5h6"/></symbol>
+      <symbol id="icon-zoom-in" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M16 16l5 5"/><path d="M7.5 10.5h6"/><path d="M10.5 7.5v6"/></symbol>
+      <symbol id="icon-shrink" viewBox="0 0 24 24"><path d="M9 3v6H3"/><path d="m9 9-6-6"/><path d="M15 21v-6h6"/><path d="m15 15 6 6"/></symbol>
+      <symbol id="icon-expand" viewBox="0 0 24 24"><path d="M3 9V3h6"/><path d="M3 3l6 6"/><path d="M21 15v6h-6"/><path d="m21 21-6-6"/></symbol>
+      <symbol id="icon-check" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></symbol>
+      <symbol id="icon-reset" viewBox="0 0 24 24"><path d="M20 6v6h-6"/><path d="M19 12a7 7 0 1 1-2-5"/></symbol>
+      <symbol id="icon-palette" viewBox="0 0 24 24"><path d="M12 4a8 8 0 0 0 0 16h1.2a1.8 1.8 0 0 0 1.2-3.1 1.5 1.5 0 0 1 1-2.6H17a3 3 0 0 0 3-3c0-4-3.5-7.3-8-7.3z"/><circle cx="8" cy="10" r="1"/><circle cx="11" cy="7.5" r="1"/><circle cx="14.5" cy="8.5" r="1"/></symbol>
+      <symbol id="icon-trash" viewBox="0 0 24 24"><path d="M5 7h14"/><path d="M9 7V4h6v3"/><path d="M7 7l1 15h8l1-15"/><path d="M10 11v6"/><path d="M14 11v6"/></symbol>
+      <symbol id="icon-power" viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M7.2 6.8a8 8 0 1 0 9.6 0"/></symbol>
+      <symbol id="icon-plug" viewBox="0 0 24 24"><path d="M8 3v6"/><path d="M16 3v6"/><path d="M6 9h12v3a6 6 0 0 1-12 0z"/><path d="M12 18v3"/></symbol>
+      <symbol id="icon-alert" viewBox="0 0 24 24"><path d="M12 3 22 20H2z"/><path d="M12 9v5"/><path d="M12 17h.01"/></symbol>
+      <symbol id="icon-message" viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/></symbol>
+    </svg>
     <div class="app">
       <header class="topbar">
         <div>
@@ -72,40 +96,40 @@
           <div id="workspaceToolbar" class="workspace-toolbar command-bar" aria-label="Workspace controls">
             <div class="toolbar-group compact-group" aria-label="History">
               <span class="toolbar-group-label">History</span>
-              <button id="undoButton" type="button" class="toolbar-button icon-button" data-action="undo" title="Undo last action" aria-label="Undo last action" disabled><span aria-hidden="true">↶</span></button>
-              <button id="redoButton" type="button" class="toolbar-button icon-button" data-action="redo" title="Redo last undone action" aria-label="Redo last undone action" disabled><span aria-hidden="true">↷</span></button>
+              <button id="undoButton" type="button" class="toolbar-button icon-button" data-action="undo" title="Undo last action" aria-label="Undo last action" disabled><svg class="ui-icon"><use href="#icon-undo"></use></svg></button>
+              <button id="redoButton" type="button" class="toolbar-button icon-button" data-action="redo" title="Redo last undone action" aria-label="Redo last undone action" disabled><svg class="ui-icon"><use href="#icon-redo"></use></svg></button>
             </div>
             <div class="toolbar-group file-group" aria-label="Save and load">
               <span class="toolbar-group-label">Work</span>
-              <button type="button" class="toolbar-button" data-action="save-state" title="Save this workbench in the browser">Save</button>
-              <button id="loadButton" type="button" class="toolbar-button" data-action="load-state" title="Load the saved workbench">Load</button>
-              <button type="button" class="toolbar-button" data-action="export-state-file" title="Download this workbench as a file">Export</button>
-              <button type="button" class="toolbar-button" data-action="import-state-file" title="Load a workbench file">Import</button>
+              <button type="button" class="toolbar-button" data-action="save-state" title="Save this workbench in the browser"><svg class="ui-icon"><use href="#icon-save"></use></svg><span class="cmd-label">Save</span></button>
+              <button id="loadButton" type="button" class="toolbar-button" data-action="load-state" title="Load the saved workbench"><svg class="ui-icon"><use href="#icon-folder"></use></svg><span class="cmd-label">Load</span></button>
+              <button type="button" class="toolbar-button" data-action="export-state-file" title="Download this workbench as a file"><svg class="ui-icon"><use href="#icon-download"></use></svg><span class="cmd-label">Export</span></button>
+              <button type="button" class="toolbar-button" data-action="import-state-file" title="Load a workbench file"><svg class="ui-icon"><use href="#icon-upload"></use></svg><span class="cmd-label">Import</span></button>
               <input id="stateFileInput" class="visually-hidden" type="file" accept=".json,application/json">
             </div>
             <div class="toolbar-group mode-group" aria-label="Board modes">
               <span class="toolbar-group-label">Modes</span>
-              <button id="wireLayerModeButton" type="button" class="toolbar-button" data-action="toggle-wire-layer-mode" title="Toggle whether wire paths sit behind devices">Wires front</button>
-              <button id="groundFaultProbeButton" type="button" class="toolbar-button probe-button" data-action="toggle-ground-fault-probe" title="Click energized loads or receptacles to simulate a ground fault">GFCI probe</button>
-              <button id="lineShortProbeButton" type="button" class="toolbar-button probe-button" data-action="toggle-line-short-probe" title="Click loads or receptacles to simulate a line-neutral short">L-N short</button>
-              <button id="clearShortsButton" type="button" class="toolbar-button" data-action="clear-test-shorts" title="Clear active test faults" disabled>Clear faults</button>
+              <button id="wireLayerModeButton" type="button" class="toolbar-button" data-action="toggle-wire-layer-mode" title="Toggle whether wire paths sit behind devices"><svg class="ui-icon"><use href="#icon-layers"></use></svg><span class="cmd-label">Wires front</span></button>
+              <button id="groundFaultProbeButton" type="button" class="toolbar-button probe-button" data-action="toggle-ground-fault-probe" title="Click energized loads or receptacles to simulate a ground fault"><svg class="ui-icon"><use href="#icon-shield"></use></svg><span class="cmd-label">GFCI probe</span></button>
+              <button id="lineShortProbeButton" type="button" class="toolbar-button probe-button" data-action="toggle-line-short-probe" title="Click loads or receptacles to simulate a line-neutral short"><svg class="ui-icon"><use href="#icon-zap"></use></svg><span class="cmd-label">L-N short</span></button>
+              <button id="clearShortsButton" type="button" class="toolbar-button" data-action="clear-test-shorts" title="Clear active test faults" disabled><svg class="ui-icon"><use href="#icon-eraser"></use></svg><span class="cmd-label">Clear faults</span></button>
             </div>
             <div class="toolbar-group view-group" aria-label="Bench size and zoom controls">
               <span class="toolbar-group-label">View</span>
-              <button type="button" class="toolbar-button icon-button" data-action="zoom-out" title="Zoom out" aria-label="Zoom out"><span aria-hidden="true">−</span></button>
+              <button type="button" class="toolbar-button icon-button" data-action="zoom-out" title="Zoom out" aria-label="Zoom out"><svg class="ui-icon"><use href="#icon-zoom-out"></use></svg></button>
               <span id="benchZoomLabel" class="zoom-label">100%</span>
-              <button type="button" class="toolbar-button icon-button" data-action="zoom-in" title="Zoom in" aria-label="Zoom in"><span aria-hidden="true">+</span></button>
-              <button type="button" class="toolbar-button" data-action="shrink-bench" title="Shrink the bench">Shrink</button>
-              <button type="button" class="toolbar-button" data-action="expand-bench" title="Expand the bench">Expand</button>
+              <button type="button" class="toolbar-button icon-button" data-action="zoom-in" title="Zoom in" aria-label="Zoom in"><svg class="ui-icon"><use href="#icon-zoom-in"></use></svg></button>
+              <button type="button" class="toolbar-button" data-action="shrink-bench" title="Shrink the bench"><svg class="ui-icon"><use href="#icon-shrink"></use></svg><span class="cmd-label">Shrink</span></button>
+              <button type="button" class="toolbar-button" data-action="expand-bench" title="Expand the bench"><svg class="ui-icon"><use href="#icon-expand"></use></svg><span class="cmd-label">Expand</span></button>
               <label>X <input id="benchWidthInput" type="number" min="520" max="4000" step="20" value="1000" aria-label="Bench width"></label>
               <label>Y <input id="benchHeightInput" type="number" min="360" max="3000" step="20" value="620" aria-label="Bench height"></label>
-              <button type="button" class="toolbar-button" data-action="apply-bench-size" title="Apply custom bench size">Apply</button>
-              <button type="button" class="toolbar-button" data-action="reset-bench-size" title="Reset bench size and zoom">Reset view</button>
+              <button type="button" class="toolbar-button" data-action="apply-bench-size" title="Apply custom bench size"><svg class="ui-icon"><use href="#icon-check"></use></svg><span class="cmd-label">Apply</span></button>
+              <button type="button" class="toolbar-button" data-action="reset-bench-size" title="Reset bench size and zoom"><svg class="ui-icon"><use href="#icon-reset"></use></svg><span class="cmd-label">Reset view</span></button>
             </div>
             <div class="toolbar-group color-group" aria-label="Board background color">
               <span class="toolbar-group-label">Board</span>
               <label class="grid-color-control" for="gridColorPicker">
-                <span>Color</span>
+                <svg class="ui-icon"><use href="#icon-palette"></use></svg><span>Color</span>
                 <input id="gridColorPicker" type="color" value="#f8fafc">
               </label>
               <input id="gridColorHex" class="grid-color-hex" type="text" inputmode="text" value="#f8fafc" aria-label="Grid color hex value">
@@ -114,8 +138,8 @@
                 <label>G <input id="gridColorG" type="number" min="0" max="255" value="250"></label>
                 <label>B <input id="gridColorB" type="number" min="0" max="255" value="252"></label>
               </div>
-              <button type="button" class="toolbar-button" data-action="reset-grid-color">Reset</button>
-              <button type="button" class="toolbar-button danger" data-action="clear-board" title="Clear the workbench">Clear</button>
+              <button type="button" class="toolbar-button" data-action="reset-grid-color"><svg class="ui-icon"><use href="#icon-reset"></use></svg><span class="cmd-label">Reset</span></button>
+              <button type="button" class="toolbar-button danger" data-action="clear-board" title="Clear the workbench"><svg class="ui-icon"><use href="#icon-trash"></use></svg><span class="cmd-label">Clear</span></button>
             </div>
           </div>
 
@@ -146,7 +170,7 @@
               <div id="diagnosticProposal" class="diagnostic-proposal"></div>
               <form id="diagnosticChatForm" class="chat-form">
                 <input id="diagnosticChatInput" type="text" autocomplete="off" placeholder="Ask why this diagnostic was shown">
-                <button type="submit">Ask</button>
+                <button type="submit"><svg class="ui-icon"><use href="#icon-message"></use></svg><span>Ask</span></button>
               </form>
               <div id="diagnosticChatStatus" class="chat-status"></div>
             </div>
@@ -161,7 +185,7 @@
       </main>
 
       <div id="contextMenu" class="context-menu" hidden>
-        <button type="button" data-action="delete-selected">Delete item</button>
+        <button type="button" data-action="delete-selected"><svg class="ui-icon"><use href="#icon-trash"></use></svg><span>Delete item</span></button>
       </div>
     </div>
 
