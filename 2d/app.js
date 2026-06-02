@@ -2064,6 +2064,7 @@
     renderDiagnostics(result);
     renderDiagnosticChat();
     renderLog();
+    hydrateActionTooltips();
   }
 
   function renderPalettes() {
@@ -2108,6 +2109,23 @@
   function setControlContent(button, iconName, label) {
     if (!button) return;
     button.innerHTML = `${uiIcon(iconName)}<span class="cmd-label">${escapeHtml(label)}</span>`;
+  }
+
+  function tooltipTextFor(button) {
+    const explicit = button.getAttribute("title") || button.getAttribute("aria-label");
+    if (explicit) return explicit;
+    return button.textContent.replace(/\s+/g, " ").trim();
+  }
+
+  function hydrateActionTooltips() {
+    document.querySelectorAll("button, .grid-color-control").forEach((control) => {
+      const label = tooltipTextFor(control);
+      if (!label) return;
+      control.dataset.tooltip = label;
+      if (!control.getAttribute("aria-label") && !control.textContent.trim()) {
+        control.setAttribute("aria-label", label);
+      }
+    });
   }
 
   function renderBenchControls() {
@@ -2200,12 +2218,12 @@
 
   function renderSupplyActions() {
     el.breakerActions.innerHTML = `
-      <button type="button" data-action="toggle-breaker">${uiIcon("power")}<span>${state.upstream.breakerOn ? "Breaker off" : "Breaker on"}</span></button>
-      <button type="button" data-action="reset-breaker">${uiIcon("reset")}<span>Reset</span></button>
+      <button type="button" data-action="toggle-breaker" title="${state.upstream.breakerOn ? "Turn breaker off" : "Turn breaker on"}">${uiIcon("power")}<span>${state.upstream.breakerOn ? "Breaker off" : "Breaker on"}</span></button>
+      <button type="button" data-action="reset-breaker" title="Reset breaker">${uiIcon("reset")}<span>Reset</span></button>
     `;
     el.upstreamGfciActions.innerHTML = `
-      <button type="button" data-action="test-upstream-gfci">${uiIcon("shield")}<span>Test</span></button>
-      <button type="button" data-action="reset-upstream-gfci">${uiIcon("reset")}<span>Reset</span></button>
+      <button type="button" data-action="test-upstream-gfci" title="Test upstream GFCI">${uiIcon("shield")}<span>Test</span></button>
+      <button type="button" data-action="reset-upstream-gfci" title="Reset upstream GFCI">${uiIcon("reset")}<span>Reset</span></button>
     `;
   }
 
@@ -2405,7 +2423,7 @@
     return `
       <div class="diagram-help">Manual path: click any side knockout on one of these boxes while this wire is selected.</div>
       ${rows}
-      ${hasManual ? `<div class="button-row"><button type="button" data-action="clear-wire-routes">Back to auto knockout routing</button></div>` : ""}
+      ${hasManual ? `<div class="button-row"><button type="button" data-action="clear-wire-routes" title="Return this wire to automatic knockout routing">${uiIcon("reset")}<span>Auto route</span></button></div>` : ""}
     `;
   }
 
@@ -2544,8 +2562,8 @@
         <div class="section-heading"><h2>${escapeHtml(conduit?.label || "Conduit")}</h2><span class="meter open">${escapeHtml(conduit?.tradeSize || "EMT")}</span></div>
         <div class="diagram-help">Drag each EMT end onto a box side knockout. Use the rotate buttons or right-click menu to turn a loose EMT 90 degrees; if one end is locked, the free end swings around that knockout.</div>
         <div class="button-row">
-          <button type="button" data-action="rotate-selected-ccw">Rotate 90 CCW</button>
-          <button type="button" data-action="rotate-selected-cw">Rotate 90 CW</button>
+          <button type="button" data-action="rotate-selected-ccw" title="Rotate 90 degrees counterclockwise">${uiIcon("rotate-ccw")}<span>Rotate CCW</span></button>
+          <button type="button" data-action="rotate-selected-cw" title="Rotate 90 degrees clockwise">${uiIcon("rotate-cw")}<span>Rotate CW</span></button>
         </div>
       `;
       return;
@@ -2613,8 +2631,8 @@
           <div class="proposal-text">${escapeHtml(state.chat.pendingProposal.reason || "Apply the assistant's suggested correction to this run.")}</div>
         </div>
         <div class="proposal-actions">
-          <button type="button" data-action="accept-ai-fix">Accept</button>
-          <button type="button" data-action="dismiss-ai-fix">Dismiss</button>
+          <button type="button" data-action="accept-ai-fix" title="Accept suggested simulator update">${uiIcon("check")}<span>Accept</span></button>
+          <button type="button" data-action="dismiss-ai-fix" title="Dismiss suggested simulator update">${uiIcon("x")}<span>Dismiss</span></button>
         </div>
       </div>
     ` : "";
@@ -4489,12 +4507,12 @@
     const selected = selectedItem();
     const device = selected?.type === "device" ? deviceById(selected.id) : null;
     const rotationControls = isRotatableDevice(device) || selected?.type === "conduit" ? `
-      <button type="button" data-action="rotate-selected-ccw">Rotate 90 CCW</button>
-      <button type="button" data-action="rotate-selected-cw">Rotate 90 CW</button>
+      <button type="button" data-action="rotate-selected-ccw" title="Rotate 90 degrees counterclockwise">${uiIcon("rotate-ccw")}<span>Rotate CCW</span></button>
+      <button type="button" data-action="rotate-selected-cw" title="Rotate 90 degrees clockwise">${uiIcon("rotate-cw")}<span>Rotate CW</span></button>
     ` : "";
     el.contextMenu.innerHTML = `
       ${rotationControls}
-      <button type="button" class="danger" data-action="delete-selected">Delete item</button>
+      <button type="button" class="danger" data-action="delete-selected" title="Delete selected item">${uiIcon("trash")}<span>Delete item</span></button>
     `;
   }
 
