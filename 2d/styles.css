@@ -1287,6 +1287,63 @@ body {
   display: none;
 }
 
+.smart-guide-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 95;
+  pointer-events: none;
+}
+
+.smart-guide-line {
+  position: absolute;
+  display: block;
+  background: rgba(30, 111, 216, 0.78);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.72),
+    0 0 14px rgba(30, 111, 216, 0.32);
+}
+
+.smart-guide-line.vertical {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  transform: translateX(-0.5px);
+}
+
+.smart-guide-line.horizontal {
+  left: 0;
+  right: 0;
+  height: 1px;
+  transform: translateY(-0.5px);
+}
+
+.smart-snap-indicator {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border: 2px solid rgba(30, 111, 216, 0.88);
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+  background: rgba(30, 111, 216, 0.12);
+  box-shadow:
+    0 0 0 4px rgba(255, 255, 255, 0.72),
+    0 0 18px rgba(30, 111, 216, 0.34);
+}
+
+.smart-snap-indicator.wireNut {
+  border-color: rgba(177, 101, 20, 0.94);
+  background: rgba(177, 101, 20, 0.14);
+  box-shadow:
+    0 0 0 4px rgba(255, 255, 255, 0.72),
+    0 0 18px rgba(177, 101, 20, 0.32);
+}
+
+.smart-snap-indicator.boxHole,
+.smart-snap-indicator.sourceConduit {
+  border-color: rgba(31, 111, 235, 0.94);
+  background: rgba(31, 111, 235, 0.16);
+}
+
 .box-layer {
   z-index: auto;
 }
@@ -1482,6 +1539,12 @@ body {
 .grid-connection.dashed,
 .wire-preview {
   stroke-dasharray: 10 7;
+}
+
+.wire-preview.snapping {
+  stroke: #1e6fd8;
+  stroke-dasharray: 0;
+  filter: drop-shadow(0 0 5px rgba(30, 111, 216, 0.42));
 }
 
 .box-title {

@@ -22,6 +22,12 @@
   const STATE_FILE_VERSION = 1;
   const STATE_FILE_MIME = "application/json";
   const SOURCE_CONDUIT_CONTEXT = "source";
+  const SMART_SNAP = {
+    boxAlignment: 14,
+    wireNode: 28,
+    wireHole: 18,
+    conduitNode: 34
+  };
   const DEFAULT_GRID_COLOR = "#f8fafc";
   const INITIAL_SOURCE = { id: "source_1", x: 128, y: 312 };
   const INITIAL_UPSTREAM = {
@@ -691,11 +697,13 @@
       return;
     }
     const point = eventToGridPoint(event);
-    const dx = point.x - drag.startMouse.x;
-    const dy = point.y - drag.startMouse.y;
+    const rawDx = point.x - drag.startMouse.x;
+    const rawDy = point.y - drag.startMouse.y;
+    const { dx, dy, guides } = smartDragOffset(drag.items, drag.starts, rawDx, rawDy);
     if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
       drag.moved = true;
     }
+    showAlignmentGuides(guides);
     moveDraggedItems(drag.items, drag.starts, dx, dy);
     render();
   }
@@ -704,6 +712,7 @@
     document.removeEventListener("pointermove", handleItemPointerMove);
     const drag = state.itemDrag;
     state.itemDrag = null;
+    clearSmartGuides();
     if (!drag) {
       return;
     }
@@ -831,6 +840,67 @@
     });
   }
 
+  function smartDragOffset(items, starts, dx, dy) {
+    const boxItems = items.filter((item) => item.type === "box");
+    if (!boxItems.length) {
+      return { dx, dy, guides: [] };
+    }
+    const movingIds = new Set(boxItems.map((item) => item.id));
+    const stationaryBoxes = state.boxes.filter((box) => !movingIds.has(box.id));
+    if (!stationaryBoxes.length) {
+      return { dx, dy, guides: [] };
+    }
+    const snapX = bestBoxAlignment(boxItems, starts, stationaryBoxes, dx, "x");
+    const snapY = bestBoxAlignment(boxItems, starts, stationaryBoxes, dy, "y");
+    const guides = [];
+    if (snapX) guides.push({ axis: "x", value: snapX.value });
+    if (snapY) guides.push({ axis: "y", value: snapY.value });
+    return {
+      dx: snapX ? snapX.delta : dx,
+      dy: snapY ? snapY.delta : dy,
+      guides
+    };
+  }
+
+  function bestBoxAlignment(boxItems, starts, stationaryBoxes, delta, axis) {
+    const size = axis === "x" ? BOX_SIZE.width : BOX_SIZE.height;
+    const movingLines = boxItems.flatMap((item) => {
+      const start = starts.get(selectionKey(item));
+      if (!start) return [];
+      const center = start[axis];
+      return [
+        { start: center, kind: "center" },
+        { start: center - size / 2, kind: "edge" },
+        { start: center + size / 2, kind: "edge" }
+      ];
+    });
+    if (!movingLines.length) return null;
+    let best = null;
+    stationaryBoxes.forEach((box) => {
+      const center = box[axis];
+      [
+        { value: center, kind: "center" },
+        { value: center - size / 2, kind: "edge" },
+        { value: center + size / 2, kind: "edge" }
+      ].forEach((target) => {
+        movingLines.forEach((line) => {
+          const distance = Math.abs(line.start + delta - target.value);
+          if (distance > SMART_SNAP.boxAlignment) return;
+          const sameKindBias = line.kind === target.kind ? -2 : 0;
+          const score = distance + sameKindBias;
+          if (!best || score < best.score) {
+            best = {
+              score,
+              delta: target.value - line.start,
+              value: target.value
+            };
+          }
+        });
+      });
+    });
+    return best;
+  }
+
   function moveWireFromStart(wireId, start, dx, dy) {
     const wire = wireById(wireId);
     if (!wire) return;
@@ -932,7 +1002,7 @@
     const start = nodePoint(node);
     state.endpointDrag = { from: node, start, current: start, moved: false, before: snapshotState() };
     ensurePreview();
-    updatePreview(start, start);
+    updatePreview(start, start, false);
     document.addEventListener("pointermove", handleEndpointPointerMove);
     document.addEventListener("pointerup", handleEndpointPointerUp, { once: true });
   }
@@ -942,12 +1012,16 @@
     if (!drag) {
       return;
     }
-    const current = eventToGridPoint(event);
+    const rawCurrent = eventToGridPoint(event);
+    const snap = smartEndpointSnap(drag.from, rawCurrent);
+    const current = snap.point;
     drag.current = current;
+    drag.snapTarget = snap.target;
     if (Math.abs(current.x - drag.start.x) > 3 || Math.abs(current.y - drag.start.y) > 3) {
       drag.moved = true;
     }
-    updatePreview(drag.start, current);
+    showSnapIndicator(snap.target ? current : null, snap.target?.kind || "");
+    updatePreview(drag.start, current, Boolean(snap.target));
   }
 
   function handleEndpointPointerUp(event) {
@@ -955,13 +1029,15 @@
     const drag = state.endpointDrag;
     state.endpointDrag = null;
     removePreview();
+    clearSmartGuides();
     if (!drag?.moved) {
       render();
       return;
     }
     suppressNextClick();
-    const target = targetNodeFromPoint(event.clientX, event.clientY, drag.from);
-    applyNodeDrag(drag.from, target, drag.current);
+    const target = drag.snapTarget || targetNodeFromPoint(event.clientX, event.clientY, drag.from);
+    const targetPoint = target ? nodePoint(target) : null;
+    applyNodeDrag(drag.from, target, targetPoint || drag.current);
     evaluateTrips();
     pushUndoSnapshot(drag.before);
     render();
@@ -3661,6 +3737,108 @@
     return wireEnd ? nodeFromElement(wireEnd) : null;
   }
 
+  function smartEndpointSnap(from, point) {
+    if (from?.kind === "wireEndpoint") {
+      return nearestSnapCandidate(point, wireSnapCandidates(from));
+    }
+    if (from?.kind === "conduitEndpoint") {
+      return nearestSnapCandidate(point, conduitSnapCandidates(from));
+    }
+    return { point, target: null };
+  }
+
+  function nearestSnapCandidate(point, candidates) {
+    let best = null;
+    candidates.forEach((candidate) => {
+      const targetPoint = candidate.point || nodePoint(candidate.node);
+      if (!targetPoint) return;
+      const distance = Math.hypot(point.x - targetPoint.x, point.y - targetPoint.y);
+      if (distance > candidate.maxDistance) return;
+      const score = distance + (candidate.priority || 0);
+      if (!best || score < best.score) {
+        best = { node: candidate.node, point: targetPoint, score };
+      }
+    });
+    return best ? { point: best.point, target: best.node } : { point, target: null };
+  }
+
+  function wireSnapCandidates(from) {
+    const candidates = [];
+    ["hot", "neutral", "ground"].forEach((key) => {
+      candidates.push({
+        node: { kind: "sourceTerminal", key },
+        maxDistance: SMART_SNAP.wireNode,
+        priority: 0
+      });
+    });
+    state.devices.forEach((device) => {
+      (DEVICE_DEFS[device.type]?.terminals || []).forEach((terminal) => {
+        candidates.push({
+          node: { kind: "deviceTerminal", deviceId: device.id, terminalKey: terminal.key },
+          maxDistance: SMART_SNAP.wireNode,
+          priority: 0
+        });
+      });
+    });
+    state.boxes.forEach((box) => {
+      candidates.push({
+        node: { kind: "boxGround", boxId: box.id },
+        maxDistance: SMART_SNAP.wireNode,
+        priority: 0
+      });
+      BOX_HOLES.forEach((hole) => {
+        candidates.push({
+          node: { kind: "boxHole", boxId: box.id, holeKey: hole.key },
+          maxDistance: SMART_SNAP.wireHole,
+          priority: 14
+        });
+      });
+    });
+    state.wireNuts.forEach((nut) => {
+      candidates.push({
+        node: { kind: "wireNut", nutId: nut.id },
+        maxDistance: SMART_SNAP.wireNode,
+        priority: -2
+      });
+    });
+    return candidates.filter((candidate) => !sameSnapNode(candidate.node, from));
+  }
+
+  function conduitSnapCandidates(from) {
+    const candidates = [{
+      node: { kind: "sourceConduit" },
+      maxDistance: SMART_SNAP.conduitNode,
+      priority: 0
+    }];
+    state.boxes.forEach((box) => {
+      BOX_HOLES.forEach((hole) => {
+        candidates.push({
+          node: { kind: "boxHole", boxId: box.id, holeKey: hole.key },
+          maxDistance: SMART_SNAP.conduitNode,
+          priority: 0
+        });
+      });
+    });
+    return candidates.filter((candidate) => !sameSnapNode(candidate.node, from));
+  }
+
+  function sameSnapNode(a, b) {
+    return snapNodeKey(a) === snapNodeKey(b);
+  }
+
+  function snapNodeKey(node) {
+    if (!node) return "";
+    if (node.kind === "wireEndpoint") return `wire:${node.wireId}:${node.end}`;
+    if (node.kind === "sourceTerminal") return `source:${node.key}`;
+    if (node.kind === "sourceConduit") return "source:conduit";
+    if (node.kind === "deviceTerminal") return `device:${node.deviceId}:${node.terminalKey}`;
+    if (node.kind === "boxGround") return `box-ground:${node.boxId}`;
+    if (node.kind === "wireNut") return `wire-nut:${node.nutId || node.id}`;
+    if (node.kind === "boxHole") return `box-hole:${node.boxId}:${node.holeKey}`;
+    if (node.kind === "conduitEndpoint") return `conduit:${node.conduitId}:${node.end}`;
+    return `${node.kind || "node"}:${JSON.stringify(node)}`;
+  }
+
   function sameNodeElement(element, node) {
     if (!node) return false;
     if (node.kind === "wireEndpoint") {
@@ -4471,14 +4649,50 @@
     el.wireLayer.appendChild(path);
   }
 
-  function updatePreview(from, to) {
+  function updatePreview(from, to, snapping = false) {
     const path = document.getElementById("wirePreviewPath");
     if (!path) return;
     path.setAttribute("d", curvePath(from, to));
+    path.classList.toggle("snapping", snapping);
   }
 
   function removePreview() {
     document.getElementById("wirePreviewPath")?.remove();
+  }
+
+  function ensureSmartGuideLayer() {
+    let layer = document.getElementById("smartGuideLayer");
+    if (!layer) {
+      layer = document.createElement("div");
+      layer.id = "smartGuideLayer";
+      layer.className = "smart-guide-layer";
+      el.sandbox.appendChild(layer);
+    }
+    return layer;
+  }
+
+  function showAlignmentGuides(guides = []) {
+    const layer = ensureSmartGuideLayer();
+    layer.innerHTML = guides.map((guide) => {
+      if (guide.axis === "x") {
+        return `<span class="smart-guide-line vertical" style="left:${guide.value}px"></span>`;
+      }
+      return `<span class="smart-guide-line horizontal" style="top:${guide.value}px"></span>`;
+    }).join("");
+  }
+
+  function showSnapIndicator(point, kind = "") {
+    const layer = ensureSmartGuideLayer();
+    layer.innerHTML = point ? `
+      <span class="smart-snap-indicator ${escapeHtml(kind)}" style="left:${point.x}px; top:${point.y}px"></span>
+    ` : "";
+  }
+
+  function clearSmartGuides() {
+    const layer = document.getElementById("smartGuideLayer");
+    if (layer) {
+      layer.innerHTML = "";
+    }
   }
 
   function curvePath(a, b) {
