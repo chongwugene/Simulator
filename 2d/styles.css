@@ -145,7 +145,7 @@ h3 {
 .tool-panel,
 .inspector {
   display: grid;
-  gap: 12px;
+  gap: 8px;
 }
 
 .panel-section {
@@ -263,6 +263,237 @@ h3 {
   box-shadow: 0 14px 32px rgba(32, 36, 42, 0.22);
 }
 
+/* Premium workbench shell */
+body {
+  background:
+    linear-gradient(180deg, rgba(246, 248, 251, 0.96), rgba(240, 237, 229, 0.94) 420px),
+    #f4f1e8;
+}
+
+.app {
+  width: min(1840px, calc(100vw - 24px));
+  padding-top: 14px;
+}
+
+.topbar {
+  align-items: center;
+  padding: 2px 2px 12px;
+}
+
+.topbar h1 {
+  font-size: clamp(1.4rem, 1.9vw, 2.1rem);
+  letter-spacing: 0;
+}
+
+.eyebrow {
+  margin-bottom: 4px;
+  color: #2367a8;
+  font-size: 0.7rem;
+  letter-spacing: 0;
+}
+
+.layout {
+  grid-template-columns: 276px minmax(620px, 1fr) 392px;
+  gap: 12px;
+}
+
+.panel-section {
+  border-color: rgba(196, 205, 214, 0.72);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.88) inset,
+    0 14px 34px rgba(38, 49, 61, 0.08);
+  padding: 10px;
+}
+
+.section-heading {
+  margin-bottom: 6px;
+}
+
+.section-heading h2 {
+  color: #2f3c48;
+  font-size: 0.72rem;
+  letter-spacing: 0;
+}
+
+.tool-grid,
+.device-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 5px;
+}
+
+.palette-group {
+  display: grid;
+  gap: 0;
+}
+
+.palette-group-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  color: #6b7784;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.palette-group-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.palette-button {
+  min-height: 34px;
+  border-color: rgba(205, 213, 222, 0.9);
+  border-radius: 9px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 248, 250, 0.92));
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 2px 8px rgba(38, 49, 61, 0.06);
+  gap: 5px;
+  padding: 3px 5px;
+}
+
+.palette-button:hover {
+  border-color: rgba(35, 103, 168, 0.42);
+  background:
+    linear-gradient(180deg, #ffffff, #f4f8fc);
+}
+
+.palette-image {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(239, 243, 247, 0.9));
+  flex-basis: 26px;
+}
+
+.palette-label {
+  font-size: 0.68rem;
+  font-weight: 850;
+  line-height: 1.03;
+}
+
+.command-bar {
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.toolbar-group {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 50px;
+  border: 1px solid rgba(202, 211, 220, 0.82);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(246, 248, 250, 0.82));
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.92) inset,
+    0 8px 20px rgba(38, 49, 61, 0.07);
+  padding: 18px 7px 7px;
+}
+
+.toolbar-group-label {
+  position: absolute;
+  left: 9px;
+  top: 4px;
+  color: #7a8592;
+  font-size: 0.54rem;
+  font-weight: 1000;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.toolbar-button {
+  min-height: 29px;
+  border-radius: 9px;
+  padding: 0 9px;
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.toolbar-button.icon-button {
+  width: 30px;
+  min-width: 30px;
+  padding: 0;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.toolbar-button.mode-on {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.86) inset,
+    0 0 0 2px rgba(37, 123, 85, 0.12);
+}
+
+#groundFaultProbeButton.mode-on,
+#lineShortProbeButton.mode-on {
+  font-weight: 1000;
+}
+
+.view-group label,
+.grid-rgb-group label,
+.grid-color-control,
+.grid-color-hex,
+.zoom-label {
+  min-height: 29px;
+  border-radius: 9px;
+  box-shadow: none;
+}
+
+.view-group input {
+  width: 54px;
+}
+
+.grid-rgb-group input {
+  width: 36px;
+}
+
+.grid-color-control {
+  gap: 5px;
+  padding: 0 6px 0 8px;
+  font-size: 0.62rem;
+}
+
+.grid-color-control input[type="color"] {
+  width: 23px;
+  height: 21px;
+}
+
+.grid-color-hex {
+  width: 76px;
+  font-size: 0.68rem;
+}
+
+.sandbox-viewport {
+  border-color: rgba(187, 199, 211, 0.88);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.88) inset,
+    0 18px 38px rgba(34, 43, 54, 0.1);
+}
+
+.diagnostic-row,
+.log-row,
+.report-cell,
+.connection-row,
+.chat-message {
+  border-radius: 10px;
+}
+
 .supply-port {
   display: none !important;
 }
@@ -285,19 +516,20 @@ h3 {
 .palette-image {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 26px;
+  height: 26px;
   border: 1px solid rgba(151, 163, 176, 0.42);
-  border-radius: 8px;
+  border-radius: 7px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(244, 247, 250, 0.92));
-  flex: 0 0 34px;
+  flex: 0 0 26px;
 }
 
 .palette-label {
   min-width: 0;
-  line-height: 1.06;
-  font-size: 0.82rem;
+  line-height: 1.03;
+  font-size: 0.68rem;
+  font-weight: 850;
 }
 
 .art,
@@ -804,7 +1036,13 @@ h3 {
   color: #177245;
 }
 
-#shortProbeButton.mode-on {
+#groundFaultProbeButton.mode-on {
+  border-color: rgba(37, 123, 85, 0.42);
+  background: #eefaf2;
+  color: var(--green);
+}
+
+#lineShortProbeButton.mode-on {
   border-color: rgba(183, 53, 53, 0.42);
   background: #fff0ef;
   color: var(--red);

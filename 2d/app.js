@@ -66,18 +66,18 @@
   };
 
   const TOOL_PALETTE = [
-    { id: "box", label: "4x4 box", kind: "box" },
-    { id: "wireNut", label: "Wire nut", kind: "wireNut" },
-    { id: "powerCable", label: "Power in", kind: "power" },
-    { id: "wireBlack", label: "Black hot", kind: "wire", color: "black", role: "hot" },
-    { id: "wireRed", label: "Red hot", kind: "wire", color: "red", role: "hot" },
-    { id: "wireWhite", label: "White neutral", kind: "wire", color: "white", role: "neutral" },
-    { id: "wireGreen", label: "Green ground", kind: "wire", color: "green", role: "ground" },
-    { id: "romex2", label: "2-wire Romex", kind: "romex", cableType: "romex2" },
-    { id: "romex3", label: "3-wire Romex", kind: "romex", cableType: "romex3" },
-    { id: "conduitHalf", label: "1/2 in EMT", kind: "conduit", conduitType: "conduitHalf" },
-    { id: "conduitThreeQuarter", label: "3/4 in EMT", kind: "conduit", conduitType: "conduitThreeQuarter" },
-    { id: "conduitOne", label: "1 in EMT", kind: "conduit", conduitType: "conduitOne" }
+    { id: "powerCable", label: "Power in", shortLabel: "Power", kind: "power", category: "Source" },
+    { id: "box", label: "4x4 box", shortLabel: "Box", kind: "box", category: "Boxes" },
+    { id: "wireNut", label: "Wire nut", shortLabel: "Nut", kind: "wireNut", category: "Boxes" },
+    { id: "wireBlack", label: "Black hot", shortLabel: "Black", kind: "wire", color: "black", role: "hot", category: "Conductors" },
+    { id: "wireRed", label: "Red hot", shortLabel: "Red", kind: "wire", color: "red", role: "hot", category: "Conductors" },
+    { id: "wireWhite", label: "White neutral", shortLabel: "White", kind: "wire", color: "white", role: "neutral", category: "Conductors" },
+    { id: "wireGreen", label: "Green ground", shortLabel: "Green", kind: "wire", color: "green", role: "ground", category: "Conductors" },
+    { id: "romex2", label: "2-wire Romex", shortLabel: "2-wire", kind: "romex", cableType: "romex2", category: "Cable" },
+    { id: "romex3", label: "3-wire Romex", shortLabel: "3-wire", kind: "romex", cableType: "romex3", category: "Cable" },
+    { id: "conduitHalf", label: "1/2 in EMT", shortLabel: "1/2 EMT", kind: "conduit", conduitType: "conduitHalf", category: "Raceway" },
+    { id: "conduitThreeQuarter", label: "3/4 in EMT", shortLabel: "3/4 EMT", kind: "conduit", conduitType: "conduitThreeQuarter", category: "Raceway" },
+    { id: "conduitOne", label: "1 in EMT", shortLabel: "1 EMT", kind: "conduit", conduitType: "conduitOne", category: "Raceway" }
   ];
 
   const ROMEX_DEFS = {
@@ -180,14 +180,14 @@
   };
 
   const DEVICE_PALETTE = [
-    "standardOutlet",
-    "halfHotOutlet",
-    "gfciOutlet",
-    "switch",
-    "threeWaySwitch",
-    "fourWaySwitch",
-    "lightBulb",
-    "socketLight"
+    { type: "standardOutlet", shortLabel: "Outlet", category: "Receptacles" },
+    { type: "halfHotOutlet", shortLabel: "Half-hot", category: "Receptacles" },
+    { type: "gfciOutlet", shortLabel: "GFCI", category: "Receptacles" },
+    { type: "switch", shortLabel: "Switch", category: "Switches" },
+    { type: "threeWaySwitch", shortLabel: "3-way", category: "Switches" },
+    { type: "fourWaySwitch", shortLabel: "4-way", category: "Switches" },
+    { type: "lightBulb", shortLabel: "Bulb", category: "Loads" },
+    { type: "socketLight", shortLabel: "Tester", category: "Loads" }
   ];
 
   class UnionFind {
@@ -240,7 +240,7 @@
     gridColor: DEFAULT_GRID_COLOR,
     gridColorEditBefore: null,
     wiresBehindDevices: false,
-    shortProbeMode: false,
+    faultProbeMode: null,
     testFaults: [],
     bench: { ...DEFAULT_BENCH },
     upstream: cloneValue(INITIAL_UPSTREAM),
@@ -289,7 +289,8 @@
     el.loadButton = document.getElementById("loadButton");
     el.stateFileInput = document.getElementById("stateFileInput");
     el.wireLayerModeButton = document.getElementById("wireLayerModeButton");
-    el.shortProbeButton = document.getElementById("shortProbeButton");
+    el.groundFaultProbeButton = document.getElementById("groundFaultProbeButton");
+    el.lineShortProbeButton = document.getElementById("lineShortProbeButton");
     el.clearShortsButton = document.getElementById("clearShortsButton");
     el.breakerActions = document.getElementById("breakerActions");
     el.upstreamGfciActions = document.getElementById("upstreamGfciActions");
@@ -506,6 +507,20 @@
       state.suppressClick = false;
       return;
     }
+    const probeMode = activeFaultProbeMode();
+    if (probeMode) {
+      const faultTarget = faultTargetFromPointer(event, probeMode);
+      if (faultTarget) {
+        applyTestFault(faultTarget);
+        return;
+      }
+      const touchedDevice = event.target.closest("[data-item-type='device']");
+      if (touchedDevice) {
+        addLog("Probe applies to wired lightbulbs, outlet receptacles, and plugged socket lightbulbs.");
+        render();
+        return;
+      }
+    }
     const gfciAction = event.target.closest("[data-gfci-action]");
     if (gfciAction) {
       const device = deviceById(gfciAction.closest("[data-item-type='device']")?.dataset.itemId);
@@ -531,19 +546,6 @@
         render();
       }
       return;
-    }
-    if (state.shortProbeMode) {
-      const shortTarget = shortTargetFromPointer(event);
-      if (shortTarget) {
-        applyTestShort(shortTarget);
-        return;
-      }
-      const touchedDevice = event.target.closest("[data-item-type='device']");
-      if (touchedDevice) {
-        addLog("Short probe works on wired lightbulbs, outlet receptacles, and plugged socket lightbulbs.");
-        render();
-        return;
-      }
     }
     const clickedHole = event.target.closest("[data-node-type='box-hole']");
     if (clickedHole && selectedItem()?.type === "wire") {
@@ -604,6 +606,9 @@
 
   function handleSandboxPointerDown(event) {
     if (event.button !== 0) {
+      return;
+    }
+    if (activeFaultProbeMode() && event.target.closest("[data-item-type='device']")) {
       return;
     }
     if (event.target.closest("[data-gfci-action], [data-switch-action], [data-action]")) {
@@ -1063,10 +1068,11 @@
       addLog(state.wiresBehindDevices ? "Wire paths moved behind devices." : "Wire paths moved in front for editing.");
       render();
     }
-    if (action === "toggle-short-probe") {
+    if (action === "toggle-short-probe" || action === "toggle-ground-fault-probe" || action === "toggle-line-short-probe") {
       recordHistory();
-      state.shortProbeMode = !state.shortProbeMode;
-      addLog(state.shortProbeMode ? "Short probe enabled. Click a receptacle or wired lightbulb to place a test short." : "Short probe disabled.");
+      const nextMode = action === "toggle-line-short-probe" ? "line-neutral" : "ground-fault";
+      state.faultProbeMode = state.faultProbeMode === nextMode ? null : nextMode;
+      addLog(state.faultProbeMode ? `${probeModeLabel(state.faultProbeMode)} enabled. Click a receptacle or wired lightbulb on the board.` : "Fault probe disabled.");
       render();
     }
     if (action === "clear-test-shorts") {
@@ -1218,6 +1224,11 @@
     const trips = snapshot.diagnostics.filter((row) => row.severity === "trip");
     const faults = snapshot.diagnostics.filter((row) => ["Ground fault", "Hot-neutral short", "Neutral-ground bond"].includes(row.title));
     let reply = `${prefix} `;
+    const protectionExplanation = explainProtectionQuestion(lower, snapshot);
+    if (protectionExplanation) {
+      reply += protectionExplanation;
+      return { reply, proposal: latchedTripProposal(snapshot, faults) };
+    }
     const outletExplanation = explainOutletQuestion(lower, snapshot);
     if (outletExplanation) {
       reply += outletExplanation;
@@ -1244,10 +1255,50 @@
     return { reply, proposal: latchedTripProposal(snapshot, faults) };
   }
 
+  function explainProtectionQuestion(lower, snapshot) {
+    if (!/(gfci|breaker|trip|short|fault)/.test(lower)) return "";
+    const hotNeutral = snapshot.diagnostics.find((row) => row.title === "Hot-neutral short");
+    const groundFault = snapshot.diagnostics.find((row) => row.title === "Ground fault");
+    const testFaults = snapshot.testFaults || [];
+    if (hotNeutral) {
+      return ` The simulator sees a line-to-neutral short: ${hotNeutral.text} A GFCI compares current leaving on hot with current returning on neutral. In a hot-neutral short, that current can still be balanced, so the GFCI is not the protective device for that fault. The breaker trips for the overcurrent condition. Use the GFCI probe when you want to simulate leakage from hot to ground.`;
+    }
+    if (groundFault) {
+      return ` The simulator sees a ground fault: ${groundFault.text} That means hot is leaking to the equipment grounding path instead of returning only on neutral, so the upstream GFCI trips before the breaker in this protected source setup.`;
+    }
+    if (testFaults.some((fault) => fault.kind === "line-neutral")) {
+      const energized = faultTargetEnergized(snapshot, testFaults.find((fault) => fault.kind === "line-neutral"));
+      const energizedText = energized === false
+        ? " In this exact board state, the touched receptacle or load is currently dead, so the probe is recorded but no protective device should trip until that point is actually energized."
+        : "";
+      return ` The active test is a line-neutral short probe. That probe intentionally ties hot to neutral, so the expected protection response on an energized point is a breaker trip, not a GFCI trip.${energizedText}`;
+    }
+    if (testFaults.some((fault) => fault.kind === "ground-fault")) {
+      const energized = faultTargetEnergized(snapshot, testFaults.find((fault) => fault.kind === "ground-fault"));
+      const energizedText = energized === false
+        ? " In this exact board state, the touched receptacle or load is currently dead, so the probe is recorded but no GFCI should trip until that point is actually energized."
+        : "";
+      return ` The active test is a ground-fault probe. If the touched object is energized from the protected source, the expected response is an upstream GFCI trip.${energizedText}`;
+    }
+    return "";
+  }
+
+  function faultTargetEnergized(snapshot, fault) {
+    if (!fault) return null;
+    const device = snapshot.devices?.find((entry) => entry.id === fault.deviceId);
+    if (!device?.report) return null;
+    if (fault.receptacle) {
+      const rowLabel = fault.receptacle === "top" ? "Top receptacle" : "Bottom receptacle";
+      const row = device.report.status?.find(([label]) => label === rowLabel);
+      if (row) return row[1] === "120 V";
+    }
+    return Boolean(device.report.energized || device.report.lit || device.report.active);
+  }
+
   function latchedTripProposal(snapshot, faults) {
     return (!faults.length && (snapshot.upstream.breakerTripped || snapshot.upstream.gfciTripped)) ? {
       title: "Clear latched trip state",
-      reason: "No active short or ground fault is visible now, so the remaining trip is a latched protection state. Accept to reset the protective device for this run.",
+      reason: "No active line-neutral short or ground fault is visible now, so the remaining trip is a latched protection state. Accept to reset the protective device for this run.",
       actions: [
         snapshot.upstream.gfciTripped ? { type: "reset_upstream_gfci" } : null,
         snapshot.upstream.breakerTripped ? { type: "reset_breaker" } : null,
@@ -1364,49 +1415,87 @@
     render();
   }
 
-  function shortTargetFromPointer(event) {
+  function activeFaultProbeMode() {
+    return state.faultProbeMode || null;
+  }
+
+  function probeModeLabel(mode) {
+    return mode === "line-neutral" ? "Line-neutral short probe" : "GFCI ground-fault probe";
+  }
+
+  function faultTargetFromPointer(event, mode) {
     const card = event.target.closest("[data-item-type='device']");
     const device = card ? deviceById(card.dataset.itemId) : null;
     if (!device) return null;
     if (device.type === "socketLight") {
       if (!device.pluggedTarget) return null;
       const outlet = deviceById(device.pluggedTarget.deviceId);
-      return outletReceptacleShortTarget(outlet, device.pluggedTarget.receptacle, "Socket tester");
+      return outletReceptacleFaultTarget(outlet, device.pluggedTarget.receptacle, "Socket tester", mode);
     }
     if (device.type === "lightBulb") {
-      return {
-        id: `device:${device.id}:bulb`,
-        deviceId: device.id,
-        label: `${DEVICE_DEFS[device.type].label} hot-neutral test short`,
-        terminals: ["hot", "neutral"]
-      };
+      return lightBulbFaultTarget(device, mode);
     }
     if (isOutletDevice(device)) {
-      return outletReceptacleShortTarget(device, outletReceptacleFromPointer(device, event), DEVICE_DEFS[device.type].label);
+      return outletReceptacleFaultTarget(device, outletReceptacleFromPointer(device, event), DEVICE_DEFS[device.type].label, mode);
     }
     return null;
   }
 
-  function outletReceptacleShortTarget(device, receptacle, sourceLabel) {
-    if (!device || !isOutletDevice(device)) return null;
-    const pair = outletReceptacleTerminalPair(device, receptacle);
-    if (!pair) return null;
+  function lightBulbFaultTarget(device, mode) {
+    if (!device) return null;
+    if (mode === "line-neutral") {
+      return {
+        id: `device:${device.id}:bulb:line-neutral`,
+        deviceId: device.id,
+        kind: mode,
+        label: `${DEVICE_DEFS[device.type].label} line-neutral short test`,
+        terminals: ["hot", "neutral"]
+      };
+    }
     return {
-      id: `device:${device.id}:${receptacle}`,
+      id: `device:${device.id}:bulb:ground-fault`,
       deviceId: device.id,
-      receptacle,
-      label: `${sourceLabel} ${receptacle} receptacle hot-neutral test short`,
-      terminals: pair
+      kind: "ground-fault",
+      label: `${DEVICE_DEFS[device.type].label} ground-fault test`,
+      nodes: [deviceTerminalNode(device.id, "hot"), SOURCE_NODE.ground]
     };
   }
 
-  function outletReceptacleTerminalPair(device, receptacle) {
+  function outletReceptacleFaultTarget(device, receptacle, sourceLabel, mode) {
+    if (!device || !isOutletDevice(device)) return null;
+    const pair = outletReceptacleTerminalPair(device, receptacle, mode);
+    if (!pair) return null;
+    const id = `device:${device.id}:${receptacle}:${mode}`;
+    if (mode === "line-neutral") {
+      return {
+        id,
+        deviceId: device.id,
+        receptacle,
+        kind: mode,
+        label: `${sourceLabel} ${receptacle} receptacle line-neutral short test`,
+        terminals: pair
+      };
+    }
+    return {
+      id,
+      deviceId: device.id,
+      receptacle,
+      kind: "ground-fault",
+      label: `${sourceLabel} ${receptacle} receptacle ground-fault test`,
+      nodes: [deviceTerminalNode(device.id, pair[0]), SOURCE_NODE.ground]
+    };
+  }
+
+  function outletReceptacleTerminalPair(device, receptacle, mode = "line-neutral") {
     if (!device) return null;
     if (device.type === "standardOutlet" || device.type === "halfHotOutlet") {
       const prefix = receptacle === "bottom" ? "bottom" : "top";
       return [`${prefix}Hot`, `${prefix}Neutral`];
     }
     if (device.type === "gfciOutlet") {
+      if (mode === "ground-fault") {
+        return ["lineHot", "lineNeutral"];
+      }
       return ["lineHot", "lineNeutral"];
     }
     return null;
@@ -1432,16 +1521,18 @@
     };
   }
 
-  function applyTestShort(target) {
-    if (!target?.terminals?.length) return;
+  function applyTestFault(target) {
+    if (!target?.terminals?.length && !target?.nodes?.length) return;
     recordHistory();
     state.testFaults = state.testFaults.filter((fault) => fault.id !== target.id);
     state.testFaults.push({
       id: target.id,
       deviceId: target.deviceId,
       receptacle: target.receptacle || null,
+      kind: target.kind || "line-neutral",
       label: target.label,
-      terminals: [...target.terminals]
+      terminals: target.terminals ? [...target.terminals] : null,
+      nodes: target.nodes ? [...target.nodes] : null
     });
     addLog(`${target.label} applied.`);
     evaluateTrips();
@@ -1456,7 +1547,7 @@
     recordHistory();
     state.testFaults = [];
     evaluateTrips();
-    addLog("All active test shorts cleared.");
+    addLog("All active test faults cleared.");
     render();
   }
 
@@ -1466,27 +1557,22 @@
     if (!device) return;
     let target = null;
     if (device.type === "lightBulb") {
-      target = {
-        id: `device:${device.id}:bulb`,
-        deviceId: device.id,
-        label: `${DEVICE_DEFS[device.type].label} hot-neutral test short`,
-        terminals: ["hot", "neutral"]
-      };
+      target = lightBulbFaultTarget(device, activeFaultProbeMode() || "ground-fault");
     } else if (device.type === "socketLight" && device.pluggedTarget) {
       const outlet = deviceById(device.pluggedTarget.deviceId);
-      target = outletReceptacleShortTarget(outlet, device.pluggedTarget.receptacle, "Socket tester");
+      target = outletReceptacleFaultTarget(outlet, device.pluggedTarget.receptacle, "Socket tester", activeFaultProbeMode() || "ground-fault");
     }
     if (target) {
-      applyTestShort(target);
+      applyTestFault(target);
     }
   }
 
   function shortSelectedReceptacle(receptacle) {
     const selected = selectedItem();
     const device = selected?.type === "device" ? deviceById(selected.id) : null;
-    const target = isOutletDevice(device) ? outletReceptacleShortTarget(device, receptacle, DEVICE_DEFS[device.type].label) : null;
+    const target = isOutletDevice(device) ? outletReceptacleFaultTarget(device, receptacle, DEVICE_DEFS[device.type].label, activeFaultProbeMode() || "ground-fault") : null;
     if (target) {
-      applyTestShort(target);
+      applyTestFault(target);
     }
   }
 
@@ -1504,7 +1590,7 @@
       recordHistory();
       state.testFaults = next;
       evaluateTrips();
-      addLog("Selected device test short cleared.");
+      addLog("Selected device test fault cleared.");
     }
     render();
   }
@@ -1835,6 +1921,11 @@
 
   function applyTestFaults(uf) {
     state.testFaults.forEach((fault) => {
+      if (Array.isArray(fault.nodes) && fault.nodes.length >= 2) {
+        const [first, second] = fault.nodes;
+        uf.union(first, second);
+        return;
+      }
       const device = deviceById(fault.deviceId);
       if (!device || !Array.isArray(fault.terminals) || fault.terminals.length < 2) return;
       const [first, second] = fault.terminals;
@@ -1976,17 +2067,37 @@
   }
 
   function renderPalettes() {
-    el.toolPalette.innerHTML = TOOL_PALETTE.map((tool) => `
-      <button class="tool-button palette-button" type="button" data-tool="${tool.id}">
+    el.toolPalette.innerHTML = renderPaletteGroups(TOOL_PALETTE, (tool) => `
+      <button class="tool-button palette-button" type="button" data-tool="${tool.id}" title="${escapeHtml(tool.label)}">
         <span class="palette-image">${renderToolArt(tool)}</span>
-        <span class="palette-label">${escapeHtml(tool.label)}</span>
+        <span class="palette-label">${escapeHtml(tool.shortLabel || tool.label)}</span>
       </button>
-    `).join("");
-    el.devicePalette.innerHTML = DEVICE_PALETTE.map((type) => `
-      <button class="device-button palette-button" type="button" data-device="${type}">
-        <span class="palette-image">${renderDeviceArt(type)}</span>
-        <span class="palette-label">${escapeHtml(DEVICE_DEFS[type].label)}</span>
+    `);
+    el.devicePalette.innerHTML = renderPaletteGroups(DEVICE_PALETTE, (entry) => `
+      <button class="device-button palette-button" type="button" data-device="${entry.type}" title="${escapeHtml(DEVICE_DEFS[entry.type].label)}">
+        <span class="palette-image">${renderDeviceArt(entry.type)}</span>
+        <span class="palette-label">${escapeHtml(entry.shortLabel || DEVICE_DEFS[entry.type].label)}</span>
       </button>
+    `);
+  }
+
+  function renderPaletteGroups(items, renderItem) {
+    const groups = [];
+    items.forEach((item) => {
+      let group = groups.find((entry) => entry.category === item.category);
+      if (!group) {
+        group = { category: item.category || "Items", items: [] };
+        groups.push(group);
+      }
+      group.items.push(item);
+    });
+    return groups.map((group) => `
+      <div class="palette-group">
+        <div class="palette-group-title">${escapeHtml(group.category)}</div>
+        <div class="palette-group-grid">
+          ${group.items.map(renderItem).join("")}
+        </div>
+      </div>
     `).join("");
   }
 
@@ -2051,18 +2162,28 @@
   }
 
   function renderShortProbeControls() {
-    el.sandbox.classList.toggle("short-probe-mode", state.shortProbeMode);
-    if (el.shortProbeButton) {
-      el.shortProbeButton.textContent = state.shortProbeMode ? "Short probe on" : "Short probe off";
-      el.shortProbeButton.classList.toggle("mode-on", state.shortProbeMode);
-      el.shortProbeButton.setAttribute("aria-pressed", state.shortProbeMode ? "true" : "false");
-      el.shortProbeButton.title = state.shortProbeMode
-        ? "Short probe is active. Click a receptacle or wired lightbulb to apply a hot-neutral test short"
-        : "Turn on click-to-short testing mode";
+    const mode = activeFaultProbeMode();
+    el.sandbox.classList.toggle("short-probe-mode", Boolean(mode));
+    el.sandbox.dataset.probeMode = mode || "";
+    if (el.groundFaultProbeButton) {
+      const active = mode === "ground-fault";
+      el.groundFaultProbeButton.classList.toggle("mode-on", active);
+      el.groundFaultProbeButton.setAttribute("aria-pressed", active ? "true" : "false");
+      el.groundFaultProbeButton.title = active
+        ? "Ground-fault probe is active. Click an energized receptacle or load to trip the upstream GFCI."
+        : "Simulate leakage from hot to ground; a GFCI-protected circuit should trip the GFCI first.";
+    }
+    if (el.lineShortProbeButton) {
+      const active = mode === "line-neutral";
+      el.lineShortProbeButton.classList.toggle("mode-on", active);
+      el.lineShortProbeButton.setAttribute("aria-pressed", active ? "true" : "false");
+      el.lineShortProbeButton.title = active
+        ? "Line-neutral short probe is active. Click a receptacle or load to simulate a hard short."
+        : "Simulate hot tied to neutral; this trips the breaker, not the GFCI.";
     }
     if (el.clearShortsButton) {
       el.clearShortsButton.disabled = state.testFaults.length === 0;
-      el.clearShortsButton.textContent = state.testFaults.length ? `Clear shorts (${state.testFaults.length})` : "Clear shorts";
+      el.clearShortsButton.textContent = state.testFaults.length ? `Clear faults (${state.testFaults.length})` : "Clear faults";
     }
   }
 
@@ -2456,7 +2577,7 @@
     if (result.testFaults?.length) {
       rows.push({
         severity: "trip",
-        title: "Active test short",
+        title: "Active test fault",
         text: result.testFaults.map((fault) => fault.label).join("; ")
       });
     }
@@ -2506,6 +2627,7 @@
       },
       sourceAvailable: result.sourceAvailable,
       diagnostics: diagnosticRows(result),
+      testFaults: cloneValue(state.testFaults),
       boxes: state.boxes.map((box) => ({
         id: box.id,
         label: box.label,
@@ -2583,19 +2705,19 @@
     let controls = "";
     if (isOutletDevice(device)) {
       controls = `
-        <button type="button" data-action="short-selected-top">Short top receptacle</button>
-        <button type="button" data-action="short-selected-bottom">Short bottom receptacle</button>
+        <button type="button" data-action="short-selected-top">${activeFaultProbeMode() === "line-neutral" ? "L-N short top" : "Ground-fault top"}</button>
+        <button type="button" data-action="short-selected-bottom">${activeFaultProbeMode() === "line-neutral" ? "L-N short bottom" : "Ground-fault bottom"}</button>
       `;
     } else if (device.type === "lightBulb") {
-      controls = `<button type="button" data-action="short-selected-device">Short bulb</button>`;
+      controls = `<button type="button" data-action="short-selected-device">${activeFaultProbeMode() === "line-neutral" ? "L-N short bulb" : "Ground-fault bulb"}</button>`;
     } else if (device.type === "socketLight" && device.pluggedTarget) {
-      controls = `<button type="button" data-action="short-selected-device">Short plugged receptacle</button>`;
+      controls = `<button type="button" data-action="short-selected-device">${activeFaultProbeMode() === "line-neutral" ? "L-N short plugged receptacle" : "Ground-fault plugged receptacle"}</button>`;
     }
     if (!controls && !hasFault) return "";
     return `
       <div class="button-row fault-controls">
         ${controls}
-        ${hasFault ? `<button type="button" data-action="clear-selected-shorts">Clear this short</button>` : ""}
+        ${hasFault ? `<button type="button" data-action="clear-selected-shorts">Clear this fault</button>` : ""}
       </div>
     `;
   }
@@ -3227,7 +3349,7 @@
       log: cloneValue(state.log),
       gridColor: state.gridColor,
       wiresBehindDevices: state.wiresBehindDevices,
-      shortProbeMode: state.shortProbeMode,
+      faultProbeMode: state.faultProbeMode,
       testFaults: cloneValue(state.testFaults),
       bench: cloneValue(state.bench)
     };
@@ -3262,7 +3384,7 @@
     state.log = cloneValue(snapshot.log) || [];
     state.gridColor = normalizeHexColor(snapshot.gridColor) || DEFAULT_GRID_COLOR;
     state.wiresBehindDevices = Boolean(snapshot.wiresBehindDevices);
-    state.shortProbeMode = Boolean(snapshot.shortProbeMode);
+    state.faultProbeMode = normalizeFaultProbeMode(snapshot.faultProbeMode) || (snapshot.shortProbeMode ? "ground-fault" : null);
     state.testFaults = Array.isArray(snapshot.testFaults) ? cloneValue(snapshot.testFaults) : [];
     state.bench = normalizeBench(snapshot.bench);
     GRID.width = state.bench.width;
@@ -3274,7 +3396,7 @@
     const gridColor = options.preserveGridColor ? state.gridColor : DEFAULT_GRID_COLOR;
     const bench = options.preserveBench ? state.bench : DEFAULT_BENCH;
     const wiresBehindDevices = state.wiresBehindDevices;
-    const shortProbeMode = state.shortProbeMode;
+    const faultProbeMode = state.faultProbeMode;
     state.nextId = 1;
     state.selected = { type: "source", id: INITIAL_SOURCE.id };
     state.source = { ...INITIAL_SOURCE };
@@ -3297,7 +3419,7 @@
     state.log = [];
     state.gridColor = gridColor;
     state.wiresBehindDevices = wiresBehindDevices;
-    state.shortProbeMode = shortProbeMode;
+    state.faultProbeMode = faultProbeMode;
     state.testFaults = [];
     state.bench = { ...bench };
     GRID.width = state.bench.width;
@@ -3314,6 +3436,10 @@
       height: snap(clamp(Number(value.height) || DEFAULT_BENCH.height, BENCH_LIMITS.minHeight, BENCH_LIMITS.maxHeight)),
       zoom: roundZoom(clamp(Number(value.zoom) || DEFAULT_BENCH.zoom, BENCH_LIMITS.minZoom, BENCH_LIMITS.maxZoom))
     };
+  }
+
+  function normalizeFaultProbeMode(value) {
+    return ["ground-fault", "line-neutral"].includes(value) ? value : null;
   }
 
   function benchEqual(a, b) {

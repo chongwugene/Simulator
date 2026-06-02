@@ -69,42 +69,54 @@
             </div>
           </div>
 
-          <div id="workspaceToolbar" class="workspace-toolbar" aria-label="Workspace controls">
-            <div class="workspace-actions" aria-label="File and history actions">
-              <button id="undoButton" type="button" class="toolbar-button" data-action="undo" title="Undo last action" disabled>Undo</button>
-              <button id="redoButton" type="button" class="toolbar-button" data-action="redo" title="Redo last undone action" disabled>Redo</button>
+          <div id="workspaceToolbar" class="workspace-toolbar command-bar" aria-label="Workspace controls">
+            <div class="toolbar-group compact-group" aria-label="History">
+              <span class="toolbar-group-label">History</span>
+              <button id="undoButton" type="button" class="toolbar-button icon-button" data-action="undo" title="Undo last action" aria-label="Undo last action" disabled><span aria-hidden="true">↶</span></button>
+              <button id="redoButton" type="button" class="toolbar-button icon-button" data-action="redo" title="Redo last undone action" aria-label="Redo last undone action" disabled><span aria-hidden="true">↷</span></button>
+            </div>
+            <div class="toolbar-group file-group" aria-label="Save and load">
+              <span class="toolbar-group-label">Work</span>
               <button type="button" class="toolbar-button" data-action="save-state" title="Save this workbench in the browser">Save</button>
               <button id="loadButton" type="button" class="toolbar-button" data-action="load-state" title="Load the saved workbench">Load</button>
-              <button type="button" class="toolbar-button" data-action="export-state-file" title="Download this workbench as a file">Save file</button>
-              <button type="button" class="toolbar-button" data-action="import-state-file" title="Load a workbench file">Load file</button>
+              <button type="button" class="toolbar-button" data-action="export-state-file" title="Download this workbench as a file">Export</button>
+              <button type="button" class="toolbar-button" data-action="import-state-file" title="Load a workbench file">Import</button>
               <input id="stateFileInput" class="visually-hidden" type="file" accept=".json,application/json">
-              <button id="wireLayerModeButton" type="button" class="toolbar-button" data-action="toggle-wire-layer-mode" title="Toggle whether wire paths sit behind devices">Wires front</button>
-              <button id="shortProbeButton" type="button" class="toolbar-button" data-action="toggle-short-probe" title="Toggle click-to-short testing mode">Short probe off</button>
-              <button id="clearShortsButton" type="button" class="toolbar-button" data-action="clear-test-shorts" title="Clear active test shorts" disabled>Clear shorts</button>
-              <button type="button" class="toolbar-button danger" data-action="clear-board" title="Clear the workbench">Clear board</button>
             </div>
-            <div class="bench-controls" aria-label="Bench size and zoom controls">
+            <div class="toolbar-group mode-group" aria-label="Board modes">
+              <span class="toolbar-group-label">Modes</span>
+              <button id="wireLayerModeButton" type="button" class="toolbar-button" data-action="toggle-wire-layer-mode" title="Toggle whether wire paths sit behind devices">Wires front</button>
+              <button id="groundFaultProbeButton" type="button" class="toolbar-button probe-button" data-action="toggle-ground-fault-probe" title="Click energized loads or receptacles to simulate a ground fault">GFCI probe</button>
+              <button id="lineShortProbeButton" type="button" class="toolbar-button probe-button" data-action="toggle-line-short-probe" title="Click loads or receptacles to simulate a line-neutral short">L-N short</button>
+              <button id="clearShortsButton" type="button" class="toolbar-button" data-action="clear-test-shorts" title="Clear active test faults" disabled>Clear faults</button>
+            </div>
+            <div class="toolbar-group view-group" aria-label="Bench size and zoom controls">
+              <span class="toolbar-group-label">View</span>
+              <button type="button" class="toolbar-button icon-button" data-action="zoom-out" title="Zoom out" aria-label="Zoom out"><span aria-hidden="true">−</span></button>
+              <span id="benchZoomLabel" class="zoom-label">100%</span>
+              <button type="button" class="toolbar-button icon-button" data-action="zoom-in" title="Zoom in" aria-label="Zoom in"><span aria-hidden="true">+</span></button>
               <button type="button" class="toolbar-button" data-action="shrink-bench" title="Shrink the bench">Shrink</button>
               <button type="button" class="toolbar-button" data-action="expand-bench" title="Expand the bench">Expand</button>
               <label>X <input id="benchWidthInput" type="number" min="520" max="4000" step="20" value="1000" aria-label="Bench width"></label>
               <label>Y <input id="benchHeightInput" type="number" min="360" max="3000" step="20" value="620" aria-label="Bench height"></label>
               <button type="button" class="toolbar-button" data-action="apply-bench-size" title="Apply custom bench size">Apply</button>
-              <button type="button" class="toolbar-button icon-button" data-action="zoom-out" title="Zoom out">-</button>
-              <span id="benchZoomLabel" class="zoom-label">100%</span>
-              <button type="button" class="toolbar-button icon-button" data-action="zoom-in" title="Zoom in">+</button>
               <button type="button" class="toolbar-button" data-action="reset-bench-size" title="Reset bench size and zoom">Reset view</button>
             </div>
-            <label class="grid-color-control" for="gridColorPicker">
-              <span>Grid color</span>
-              <input id="gridColorPicker" type="color" value="#f8fafc">
-            </label>
-            <input id="gridColorHex" class="grid-color-hex" type="text" inputmode="text" value="#f8fafc" aria-label="Grid color hex value">
-            <div class="grid-rgb-group" aria-label="Grid RGB color values">
-              <label>R <input id="gridColorR" type="number" min="0" max="255" value="248"></label>
-              <label>G <input id="gridColorG" type="number" min="0" max="255" value="250"></label>
-              <label>B <input id="gridColorB" type="number" min="0" max="255" value="252"></label>
+            <div class="toolbar-group color-group" aria-label="Board background color">
+              <span class="toolbar-group-label">Board</span>
+              <label class="grid-color-control" for="gridColorPicker">
+                <span>Color</span>
+                <input id="gridColorPicker" type="color" value="#f8fafc">
+              </label>
+              <input id="gridColorHex" class="grid-color-hex" type="text" inputmode="text" value="#f8fafc" aria-label="Grid color hex value">
+              <div class="grid-rgb-group" aria-label="Grid RGB color values">
+                <label>R <input id="gridColorR" type="number" min="0" max="255" value="248"></label>
+                <label>G <input id="gridColorG" type="number" min="0" max="255" value="250"></label>
+                <label>B <input id="gridColorB" type="number" min="0" max="255" value="252"></label>
+              </div>
+              <button type="button" class="toolbar-button" data-action="reset-grid-color">Reset</button>
+              <button type="button" class="toolbar-button danger" data-action="clear-board" title="Clear the workbench">Clear</button>
             </div>
-            <button type="button" class="toolbar-button" data-action="reset-grid-color">Reset</button>
           </div>
 
           <div id="sandboxViewport" class="sandbox-viewport" aria-label="Scrollable wiring bench">

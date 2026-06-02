@@ -40,6 +40,8 @@ const SYSTEM_PROMPT = [
   "Answer the user's specific why question from the graph state, not just whether a trip exists.",
   "For dead outlets or receptacles, name the relevant device or box and state which hot/neutral terminal is missing, open, dead, or incorrectly connected.",
   "For grounding and trip questions, distinguish an open/missing equipment ground from an actual hot-ground fault; an open ground alone does not trip.",
+  "For protection questions, distinguish a line-neutral short from a ground fault: a GFCI responds to current imbalance/leakage to ground, while a breaker responds to hot-neutral overcurrent shorts.",
+  "If the simulator includes testFaults, use their kind field: ground-fault should explain GFCI-first behavior, line-neutral should explain breaker behavior.",
   "For GFCI, switch, and split receptacle questions, mention the specific modeled nuance that controls the result.",
   "If the diagnostic is correct, explain the exact graph path or missing path in plain language.",
   "If the diagnostic appears stale or wrong for this simulator run, propose only safe simulator-state actions from the allowed list.",
