@@ -804,6 +804,12 @@ h3 {
   color: #177245;
 }
 
+#shortProbeButton.mode-on {
+  border-color: rgba(183, 53, 53, 0.42);
+  background: #fff0ef;
+  color: var(--red);
+}
+
 .toolbar-button.danger {
   border-color: rgba(183, 53, 53, 0.32);
   color: var(--red);
@@ -1011,6 +1017,14 @@ h3 {
 
 .sandbox.wires-behind-devices .wire-hit-path {
   pointer-events: none;
+}
+
+.sandbox.short-probe-mode .device-card.lightBulb,
+.sandbox.short-probe-mode .device-card.socketLight.plugged,
+.sandbox.short-probe-mode .device-card.standardOutlet,
+.sandbox.short-probe-mode .device-card.halfHotOutlet,
+.sandbox.short-probe-mode .device-card.gfciOutlet {
+  cursor: crosshair;
 }
 
 .sandbox.wires-behind-devices .wire-end-node.selected,
@@ -1831,6 +1845,30 @@ button.device-face {
   left: 98px;
 }
 
+.source-conduit-node {
+  left: 63px;
+  top: 86px;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(72, 91, 105, 0.82);
+  background:
+    radial-gradient(circle at 50% 50%, #ffffff 0 3px, #526170 4px 6px, rgba(184, 198, 212, 0.48) 7px 100%);
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.86),
+    0 3px 8px rgba(32, 36, 42, 0.2);
+  cursor: crosshair;
+}
+
+.source-conduit-node.connected {
+  border-color: #1f6feb;
+  background:
+    radial-gradient(circle at 50% 50%, #ffffff 0 3px, #1f6feb 4px 6px, rgba(122, 179, 255, 0.5) 7px 100%);
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.95),
+    0 0 0 5px rgba(31, 111, 235, 0.24),
+    0 7px 14px rgba(31, 111, 235, 0.2);
+}
+
 .box-4x4 {
   z-index: 1;
   width: 236px;
@@ -1947,14 +1985,66 @@ button.device-face {
 .device-card .device-caption {
   position: absolute;
   left: 50%;
-  top: calc(100% + 3px);
+  top: calc(100% + 4px);
   transform: translateX(-50%);
-  max-width: 130px;
+  max-width: 112px;
+  padding: 2px 7px;
+  border: 1px solid rgba(64, 80, 95, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.84);
   color: #40505f;
-  font-size: 0.68rem;
+  box-shadow: 0 2px 8px rgba(38, 49, 61, 0.1);
+  font-size: 0.56rem;
   font-weight: 900;
+  line-height: 1.08;
   text-align: center;
   white-space: normal;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.device-card .device-caption::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -5px;
+  width: 1px;
+  height: 5px;
+  background: rgba(64, 80, 95, 0.24);
+  transform: translateX(-50%);
+}
+
+.device-card.lightBulb .device-caption {
+  top: auto;
+  bottom: 7px;
+}
+
+.device-card.lightBulb .device-caption::before {
+  display: none;
+}
+
+.device-card.socketLight.plugged .device-caption {
+  display: none;
+}
+
+.device-card.faulted::after {
+  content: "SHORT";
+  position: absolute;
+  left: 50%;
+  top: -15px;
+  z-index: 6;
+  transform: translateX(-50%);
+  min-height: 16px;
+  padding: 2px 7px 1px;
+  border: 1px solid rgba(183, 53, 53, 0.42);
+  border-radius: 999px;
+  background: rgba(250, 231, 228, 0.96);
+  color: var(--red);
+  font-size: 0.48rem;
+  font-weight: 1000;
+  line-height: 1;
+  box-shadow: 0 3px 8px rgba(183, 53, 53, 0.16);
+  pointer-events: none;
 }
 
 .wire-nut-item {
@@ -2759,6 +2849,19 @@ button.device-face {
     0 2px 6px rgba(32, 36, 42, 0.22);
 }
 
+.device-card.socketLight.plugged .device-face.socket-light {
+  width: 25px;
+  min-height: 25px;
+  height: 25px;
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255, 247, 166, 0.9) 0 6px, rgba(255, 202, 34, 0.86) 7px 11px, transparent 12px),
+    linear-gradient(180deg, #fffdf3, #f1f5f8);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.95),
+    0 3px 8px rgba(32, 36, 42, 0.16);
+}
+
 .device-card .device-face.socket-light.lit {
   border-color: #d59e13;
   background:
@@ -2768,6 +2871,16 @@ button.device-face {
     0 0 0 2px rgba(255, 255, 255, 0.9),
     0 0 18px rgba(255, 203, 39, 0.95),
     0 0 34px rgba(255, 224, 91, 0.55);
+}
+
+.device-card.socketLight.plugged .device-face.socket-light.lit {
+  border-color: #e0a40f;
+  background:
+    radial-gradient(circle at 50% 50%, #fffce0 0 5px, #ffd02e 6px 12px, #ffb700 13px 100%);
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.92),
+    0 0 18px rgba(255, 203, 39, 0.98),
+    0 0 34px rgba(255, 224, 91, 0.62);
 }
 
 .device-card .device-face.socket-light .socket-glow {
@@ -2836,6 +2949,11 @@ button.device-face {
 
 .device-card.socketLight.plugged {
   z-index: 60;
+}
+
+.device-card.socketLight.plugged .socket-shell,
+.device-card.socketLight.plugged .socket-prongs {
+  display: none;
 }
 
 .device-card.socketLight.plugged .device-caption {

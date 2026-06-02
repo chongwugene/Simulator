@@ -21,6 +21,7 @@
   const STATE_FILE_KIND = "residential-wiring-simulator-workbench";
   const STATE_FILE_VERSION = 1;
   const STATE_FILE_MIME = "application/json";
+  const SOURCE_CONDUIT_CONTEXT = "source";
   const DEFAULT_GRID_COLOR = "#f8fafc";
   const INITIAL_SOURCE = { id: "source_1", x: 128, y: 312 };
   const INITIAL_UPSTREAM = {
@@ -239,6 +240,8 @@
     gridColor: DEFAULT_GRID_COLOR,
     gridColorEditBefore: null,
     wiresBehindDevices: false,
+    shortProbeMode: false,
+    testFaults: [],
     bench: { ...DEFAULT_BENCH },
     upstream: cloneValue(INITIAL_UPSTREAM),
     chat: {
@@ -286,6 +289,8 @@
     el.loadButton = document.getElementById("loadButton");
     el.stateFileInput = document.getElementById("stateFileInput");
     el.wireLayerModeButton = document.getElementById("wireLayerModeButton");
+    el.shortProbeButton = document.getElementById("shortProbeButton");
+    el.clearShortsButton = document.getElementById("clearShortsButton");
     el.breakerActions = document.getElementById("breakerActions");
     el.upstreamGfciActions = document.getElementById("upstreamGfciActions");
     el.sandboxViewport = document.getElementById("sandboxViewport");
@@ -526,6 +531,19 @@
         render();
       }
       return;
+    }
+    if (state.shortProbeMode) {
+      const shortTarget = shortTargetFromPointer(event);
+      if (shortTarget) {
+        applyTestShort(shortTarget);
+        return;
+      }
+      const touchedDevice = event.target.closest("[data-item-type='device']");
+      if (touchedDevice) {
+        addLog("Short probe works on wired lightbulbs, outlet receptacles, and plugged socket lightbulbs.");
+        render();
+        return;
+      }
     }
     const clickedHole = event.target.closest("[data-node-type='box-hole']");
     if (clickedHole && selectedItem()?.type === "wire") {
@@ -1045,6 +1063,15 @@
       addLog(state.wiresBehindDevices ? "Wire paths moved behind devices." : "Wire paths moved in front for editing.");
       render();
     }
+    if (action === "toggle-short-probe") {
+      recordHistory();
+      state.shortProbeMode = !state.shortProbeMode;
+      addLog(state.shortProbeMode ? "Short probe enabled. Click a receptacle or wired lightbulb to place a test short." : "Short probe disabled.");
+      render();
+    }
+    if (action === "clear-test-shorts") {
+      clearTestShorts();
+    }
     if (action === "toggle-breaker") {
       recordHistory();
       state.upstream.breakerOn = !state.upstream.breakerOn;
@@ -1116,6 +1143,15 @@
     }
     if (action === "clear-wire-routes") {
       clearSelectedWireRoutes();
+    }
+    if (action === "short-selected-device") {
+      shortSelectedDevice();
+    }
+    if (action === "short-selected-top" || action === "short-selected-bottom") {
+      shortSelectedReceptacle(action === "short-selected-top" ? "top" : "bottom");
+    }
+    if (action === "clear-selected-shorts") {
+      clearSelectedDeviceShorts();
     }
     if (action === "accept-ai-fix") {
       applyDiagnosticProposal();
@@ -1328,6 +1364,151 @@
     render();
   }
 
+  function shortTargetFromPointer(event) {
+    const card = event.target.closest("[data-item-type='device']");
+    const device = card ? deviceById(card.dataset.itemId) : null;
+    if (!device) return null;
+    if (device.type === "socketLight") {
+      if (!device.pluggedTarget) return null;
+      const outlet = deviceById(device.pluggedTarget.deviceId);
+      return outletReceptacleShortTarget(outlet, device.pluggedTarget.receptacle, "Socket tester");
+    }
+    if (device.type === "lightBulb") {
+      return {
+        id: `device:${device.id}:bulb`,
+        deviceId: device.id,
+        label: `${DEVICE_DEFS[device.type].label} hot-neutral test short`,
+        terminals: ["hot", "neutral"]
+      };
+    }
+    if (isOutletDevice(device)) {
+      return outletReceptacleShortTarget(device, outletReceptacleFromPointer(device, event), DEVICE_DEFS[device.type].label);
+    }
+    return null;
+  }
+
+  function outletReceptacleShortTarget(device, receptacle, sourceLabel) {
+    if (!device || !isOutletDevice(device)) return null;
+    const pair = outletReceptacleTerminalPair(device, receptacle);
+    if (!pair) return null;
+    return {
+      id: `device:${device.id}:${receptacle}`,
+      deviceId: device.id,
+      receptacle,
+      label: `${sourceLabel} ${receptacle} receptacle hot-neutral test short`,
+      terminals: pair
+    };
+  }
+
+  function outletReceptacleTerminalPair(device, receptacle) {
+    if (!device) return null;
+    if (device.type === "standardOutlet" || device.type === "halfHotOutlet") {
+      const prefix = receptacle === "bottom" ? "bottom" : "top";
+      return [`${prefix}Hot`, `${prefix}Neutral`];
+    }
+    if (device.type === "gfciOutlet") {
+      return ["lineHot", "lineNeutral"];
+    }
+    return null;
+  }
+
+  function outletReceptacleFromPointer(device, event) {
+    const local = deviceLocalPointFromPointer(device, event);
+    return local.y > deviceSizeForType(device.type).height / 2 ? "bottom" : "top";
+  }
+
+  function deviceLocalPointFromPointer(device, event) {
+    const point = eventToGridPoint(event);
+    const pos = devicePosition(device);
+    const angle = (-deviceRotation(device) * Math.PI) / 180;
+    const dx = point.x - pos.x;
+    const dy = point.y - pos.y;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const base = deviceSizeForType(device.type);
+    return {
+      x: dx * cos - dy * sin + base.width / 2,
+      y: dx * sin + dy * cos + base.height / 2
+    };
+  }
+
+  function applyTestShort(target) {
+    if (!target?.terminals?.length) return;
+    recordHistory();
+    state.testFaults = state.testFaults.filter((fault) => fault.id !== target.id);
+    state.testFaults.push({
+      id: target.id,
+      deviceId: target.deviceId,
+      receptacle: target.receptacle || null,
+      label: target.label,
+      terminals: [...target.terminals]
+    });
+    addLog(`${target.label} applied.`);
+    evaluateTrips();
+    render();
+  }
+
+  function clearTestShorts() {
+    if (!state.testFaults.length) {
+      render();
+      return;
+    }
+    recordHistory();
+    state.testFaults = [];
+    evaluateTrips();
+    addLog("All active test shorts cleared.");
+    render();
+  }
+
+  function shortSelectedDevice() {
+    const selected = selectedItem();
+    const device = selected?.type === "device" ? deviceById(selected.id) : null;
+    if (!device) return;
+    let target = null;
+    if (device.type === "lightBulb") {
+      target = {
+        id: `device:${device.id}:bulb`,
+        deviceId: device.id,
+        label: `${DEVICE_DEFS[device.type].label} hot-neutral test short`,
+        terminals: ["hot", "neutral"]
+      };
+    } else if (device.type === "socketLight" && device.pluggedTarget) {
+      const outlet = deviceById(device.pluggedTarget.deviceId);
+      target = outletReceptacleShortTarget(outlet, device.pluggedTarget.receptacle, "Socket tester");
+    }
+    if (target) {
+      applyTestShort(target);
+    }
+  }
+
+  function shortSelectedReceptacle(receptacle) {
+    const selected = selectedItem();
+    const device = selected?.type === "device" ? deviceById(selected.id) : null;
+    const target = isOutletDevice(device) ? outletReceptacleShortTarget(device, receptacle, DEVICE_DEFS[device.type].label) : null;
+    if (target) {
+      applyTestShort(target);
+    }
+  }
+
+  function clearSelectedDeviceShorts() {
+    const selected = selectedItem();
+    const device = selected?.type === "device" ? deviceById(selected.id) : null;
+    if (!device) return;
+    const before = state.testFaults.length;
+    const deviceIds = new Set([device.id]);
+    if (device.type === "socketLight" && device.pluggedTarget?.deviceId) {
+      deviceIds.add(device.pluggedTarget.deviceId);
+    }
+    const next = state.testFaults.filter((fault) => !deviceIds.has(fault.deviceId));
+    if (next.length !== before) {
+      recordHistory();
+      state.testFaults = next;
+      evaluateTrips();
+      addLog("Selected device test short cleared.");
+    }
+    render();
+  }
+
   function palettePayload(button) {
     if (button.dataset.tool) {
       return { palette: "tool", id: button.dataset.tool };
@@ -1537,6 +1718,12 @@
     const conduit = conduitById(from.conduitId);
     const endpoint = conduit?.[from.end];
     if (!conduit || !endpoint) return;
+    const sourceTarget = target?.kind === "sourceConduit" ? target : nearestSourceConduitAtPoint(point, 78);
+    if (sourceTarget) {
+      endpoint.connection = { kind: "sourceConduit" };
+      addLog(`${conduit.label} locked to Power In conduit port.`);
+      return;
+    }
     const holeTarget = target?.kind === "boxHole" ? target : nearestBoxHoleAtPoint(point, 78);
     if (holeTarget) {
       endpoint.connection = { kind: "boxHole", boxId: holeTarget.boxId, holeKey: holeTarget.holeKey };
@@ -1547,7 +1734,7 @@
     endpoint.connection = null;
     endpoint.x = clamp(point.x, 18, GRID.width - 18);
     endpoint.y = clamp(point.y, 18, GRID.height - 18);
-    addLog(`${conduit.label} end left open. EMT ends only lock to box knockouts.`);
+    addLog(`${conduit.label} end left open. EMT ends lock to box knockouts or the Power In conduit port.`);
   }
 
   function buildGraph(activeGfcis = new Set()) {
@@ -1584,6 +1771,7 @@
       DEVICE_DEFS[device.type].terminals.forEach((terminal) => uf.find(deviceTerminalNode(device.id, terminal.key)));
       applyDeviceInternals(uf, device, activeGfcis);
     });
+    applyTestFaults(uf);
     return uf;
   }
 
@@ -1612,7 +1800,7 @@
     }
     const faults = findFaults(info);
     const devices = reportDevices(uf, info, activeGfcis, faults);
-    return { uf, info, activeGfcis, faults, devices, sourceAvailable: sourcePowerAvailable() };
+    return { uf, info, activeGfcis, faults, devices, testFaults: cloneValue(state.testFaults), sourceAvailable: sourcePowerAvailable() };
   }
 
   function applyDeviceInternals(uf, device, activeGfcis) {
@@ -1643,6 +1831,16 @@
         uf.union(deviceTerminalNode(device.id, "inB"), deviceTerminalNode(device.id, "outB"));
       }
     }
+  }
+
+  function applyTestFaults(uf) {
+    state.testFaults.forEach((fault) => {
+      const device = deviceById(fault.deviceId);
+      if (!device || !Array.isArray(fault.terminals) || fault.terminals.length < 2) return;
+      const [first, second] = fault.terminals;
+      if (!terminalDef(device.id, first) || !terminalDef(device.id, second)) return;
+      uf.union(deviceTerminalNode(device.id, first), deviceTerminalNode(device.id, second));
+    });
   }
 
   function rootInfo(uf) {
@@ -1766,6 +1964,7 @@
     renderGridColorControls();
     renderHistoryControls();
     renderWireLayerModeControl();
+    renderShortProbeControls();
     renderPalettes();
     renderSupplyActions();
     renderStatus(result);
@@ -1851,6 +2050,22 @@
       : "Wire paths are in front and selectable by line";
   }
 
+  function renderShortProbeControls() {
+    el.sandbox.classList.toggle("short-probe-mode", state.shortProbeMode);
+    if (el.shortProbeButton) {
+      el.shortProbeButton.textContent = state.shortProbeMode ? "Short probe on" : "Short probe off";
+      el.shortProbeButton.classList.toggle("mode-on", state.shortProbeMode);
+      el.shortProbeButton.setAttribute("aria-pressed", state.shortProbeMode ? "true" : "false");
+      el.shortProbeButton.title = state.shortProbeMode
+        ? "Short probe is active. Click a receptacle or wired lightbulb to apply a hot-neutral test short"
+        : "Turn on click-to-short testing mode";
+    }
+    if (el.clearShortsButton) {
+      el.clearShortsButton.disabled = state.testFaults.length === 0;
+      el.clearShortsButton.textContent = state.testFaults.length ? `Clear shorts (${state.testFaults.length})` : "Clear shorts";
+    }
+  }
+
   function renderSupplyActions() {
     el.breakerActions.innerHTML = `
       <button type="button" data-action="toggle-breaker">${state.upstream.breakerOn ? "Turn breaker off" : "Turn breaker on"}</button>
@@ -1899,6 +2114,8 @@
           <span class="grid-node source-terminal ${key} ${sourceNodeClass(key, result)} ${nodeConnectionClasses({ kind: "sourceTerminal", key })}"
             data-node-type="source-terminal" data-source-key="${key}" title="${key}"></span>
         `).join("")}
+        <span class="grid-node source-conduit-node ${sourceConduitInUse() ? "connected" : ""}"
+          data-node-type="source-conduit" title="Power In conduit port"></span>
       </div>
     `;
   }
@@ -1945,8 +2162,9 @@
     const size = deviceSize(device);
     const baseSize = deviceSizeForType(device.type);
     const rotation = deviceRotation(device);
+    const faulted = deviceHasActiveTestFault(device) ? "faulted" : "";
     return `
-      <div class="device-card ${device.type} rotation-${rotation} ${selected ? "selected" : ""} ${device.boxId ? "in-box" : ""} ${device.pluggedTarget ? "plugged" : ""} ${socketTesterSideClass(device)}" data-item-type="device" data-item-id="${device.id}" data-rotation="${rotation}"
+      <div class="device-card ${device.type} rotation-${rotation} ${selected ? "selected" : ""} ${faulted} ${device.boxId ? "in-box" : ""} ${device.pluggedTarget ? "plugged" : ""} ${socketTesterSideClass(device)}" data-item-type="device" data-item-id="${device.id}" data-rotation="${rotation}"
         style="${posStyle(pos.x, pos.y)}; width:${size.width}px; height:${size.height}px">
         <div class="device-rotor" style="width:${baseSize.width}px; height:${baseSize.height}px; transform: translate(-50%, -50%) rotate(${rotation}deg)">
           ${renderDeviceFace(device, report)}
@@ -2149,6 +2367,7 @@
       el.boxInspector.innerHTML = `
         <div class="section-heading"><h2>${escapeHtml(DEVICE_DEFS[device.type].label)}</h2><span class="meter ${placementMeter}">${placementLabel}</span></div>
         <div class="diagram-help">${escapeHtml(deviceHelp(device.type))}</div>
+        ${renderDeviceFaultControls(device)}
         ${report ? renderReport(report) : ""}
       `;
       return;
@@ -2233,6 +2452,13 @@
     });
     if (state.upstream.lastTrip) {
       rows.push({ severity: "trip", title: state.upstream.lastTrip.title, text: state.upstream.lastTrip.text });
+    }
+    if (result.testFaults?.length) {
+      rows.push({
+        severity: "trip",
+        title: "Active test short",
+        text: result.testFaults.map((fault) => fault.label).join("; ")
+      });
     }
     result.faults.forEach((fault) => rows.push(fault));
     if (rows.length === 1 && result.sourceAvailable) {
@@ -2349,6 +2575,34 @@
       </div>
       ${report.warnings.map((warning) => `<div class="diagnostic-row warn"><div class="diagnostic-title">Device nuance</div><div class="diagnostic-text">${escapeHtml(warning)}</div></div>`).join("")}
     `;
+  }
+
+  function renderDeviceFaultControls(device) {
+    if (!device) return "";
+    const hasFault = deviceHasActiveTestFault(device);
+    let controls = "";
+    if (isOutletDevice(device)) {
+      controls = `
+        <button type="button" data-action="short-selected-top">Short top receptacle</button>
+        <button type="button" data-action="short-selected-bottom">Short bottom receptacle</button>
+      `;
+    } else if (device.type === "lightBulb") {
+      controls = `<button type="button" data-action="short-selected-device">Short bulb</button>`;
+    } else if (device.type === "socketLight" && device.pluggedTarget) {
+      controls = `<button type="button" data-action="short-selected-device">Short plugged receptacle</button>`;
+    }
+    if (!controls && !hasFault) return "";
+    return `
+      <div class="button-row fault-controls">
+        ${controls}
+        ${hasFault ? `<button type="button" data-action="clear-selected-shorts">Clear this short</button>` : ""}
+      </div>
+    `;
+  }
+
+  function deviceHasActiveTestFault(device) {
+    if (!device) return false;
+    return state.testFaults.some((fault) => fault.deviceId === device.id || (device.type === "socketLight" && fault.deviceId === device.pluggedTarget?.deviceId));
   }
 
   function renderToolArt(tool) {
@@ -2492,7 +2746,8 @@
     const target = deviceById(deviceId);
     if (!target) return { x: 0, y: 0 };
     const pos = devicePosition(target);
-    const yOffset = receptacle === "top" ? -22 : 22;
+    const offsets = target.type === "gfciOutlet" ? { top: -36, bottom: 39 } : { top: -22, bottom: 22 };
+    const yOffset = offsets[receptacle] ?? offsets.top;
     const offset = rotateDeviceOffset(target, 0, yOffset);
     return { x: pos.x + offset.x, y: pos.y + offset.y };
   }
@@ -2592,6 +2847,7 @@
     if (selected.type === "device") {
       removeDevicePlugTargets(selected.id);
       state.devices = state.devices.filter((device) => device.id !== selected.id);
+      removeTestFaultsForDevices(new Set([selected.id]));
       removeConnectionsTo({ kind: "device", deviceId: selected.id });
       addLog("Device deleted.");
     }
@@ -2655,6 +2911,7 @@
       removeDevicePlugTargets(deviceId);
       removeConnectionsTo({ kind: "device", deviceId });
     });
+    removeTestFaultsForDevices(deviceIds);
     nutIds.forEach((id) => removeConnectionsTo({ kind: "wireNut", id }));
 
     state.boxes = state.boxes.filter((box) => !boxIds.has(box.id));
@@ -2970,6 +3227,8 @@
       log: cloneValue(state.log),
       gridColor: state.gridColor,
       wiresBehindDevices: state.wiresBehindDevices,
+      shortProbeMode: state.shortProbeMode,
+      testFaults: cloneValue(state.testFaults),
       bench: cloneValue(state.bench)
     };
   }
@@ -3003,6 +3262,8 @@
     state.log = cloneValue(snapshot.log) || [];
     state.gridColor = normalizeHexColor(snapshot.gridColor) || DEFAULT_GRID_COLOR;
     state.wiresBehindDevices = Boolean(snapshot.wiresBehindDevices);
+    state.shortProbeMode = Boolean(snapshot.shortProbeMode);
+    state.testFaults = Array.isArray(snapshot.testFaults) ? cloneValue(snapshot.testFaults) : [];
     state.bench = normalizeBench(snapshot.bench);
     GRID.width = state.bench.width;
     GRID.height = state.bench.height;
@@ -3013,6 +3274,7 @@
     const gridColor = options.preserveGridColor ? state.gridColor : DEFAULT_GRID_COLOR;
     const bench = options.preserveBench ? state.bench : DEFAULT_BENCH;
     const wiresBehindDevices = state.wiresBehindDevices;
+    const shortProbeMode = state.shortProbeMode;
     state.nextId = 1;
     state.selected = { type: "source", id: INITIAL_SOURCE.id };
     state.source = { ...INITIAL_SOURCE };
@@ -3035,6 +3297,8 @@
     state.log = [];
     state.gridColor = gridColor;
     state.wiresBehindDevices = wiresBehindDevices;
+    state.shortProbeMode = shortProbeMode;
+    state.testFaults = [];
     state.bench = { ...bench };
     GRID.width = state.bench.width;
     GRID.height = state.bench.height;
@@ -3205,10 +3469,16 @@
     });
   }
 
+  function removeTestFaultsForDevices(deviceIds) {
+    if (!deviceIds?.size || !state.testFaults.length) return;
+    state.testFaults = state.testFaults.filter((fault) => !deviceIds.has(fault.deviceId));
+  }
+
   function nodeFromElement(element) {
     const type = element.dataset.nodeType;
     if (type === "wire-end") return { kind: "wireEndpoint", wireId: element.dataset.wireId, end: element.dataset.wireEnd };
     if (type === "source-terminal") return { kind: "sourceTerminal", key: element.dataset.sourceKey };
+    if (type === "source-conduit") return { kind: "sourceConduit" };
     if (type === "device-terminal") return { kind: "deviceTerminal", deviceId: element.dataset.deviceId, terminalKey: element.dataset.terminalKey };
     if (type === "box-ground") return { kind: "boxGround", boxId: element.dataset.boxId };
     if (type === "box-hole") return { kind: "boxHole", boxId: element.dataset.boxId, holeKey: element.dataset.holeKey };
@@ -3227,7 +3497,7 @@
       nodes.push(nodeElement);
     });
     const connector = nodes.find((element) => element.dataset.nodeType === "wire-nut") ||
-      nodes.find((element) => ["source-terminal", "device-terminal", "box-ground", "box-hole"].includes(element.dataset.nodeType));
+      nodes.find((element) => ["source-terminal", "source-conduit", "device-terminal", "box-ground", "box-hole"].includes(element.dataset.nodeType));
     if (connector) {
       return nodeFromElement(connector);
     }
@@ -3243,6 +3513,7 @@
         element.dataset.wireEnd === node.end;
     }
     if (node.kind === "sourceTerminal") return element.dataset.nodeType === "source-terminal" && element.dataset.sourceKey === node.key;
+    if (node.kind === "sourceConduit") return element.dataset.nodeType === "source-conduit";
     if (node.kind === "deviceTerminal") {
       return element.dataset.nodeType === "device-terminal" &&
         element.dataset.deviceId === node.deviceId &&
@@ -3259,6 +3530,7 @@
     if (!node) return null;
     if (node.kind === "wireEndpoint") return wireEndpointPoint(node.wireId, node.end);
     if (node.kind === "sourceTerminal") return sourceTerminalPoint(node.key);
+    if (node.kind === "sourceConduit") return sourceConduitPoint();
     if (node.kind === "deviceTerminal") return deviceTerminalPoint(node.deviceId, node.terminalKey);
     if (node.kind === "boxGround") {
       const box = boxById(node.boxId);
@@ -3286,6 +3558,7 @@
       const device = deviceById(connection.deviceId);
       if (device?.boxId) return { boxId: device.boxId };
     }
+    if (connection?.kind === "sourceTerminal") return { boxId: SOURCE_CONDUIT_CONTEXT };
     if (connection?.kind === "boxGround") return { boxId: connection.boxId };
     if (connection?.kind === "boxHole") return { boxId: connection.boxId, holeKey: connection.holeKey };
     if (connection?.kind === "wireNut") {
@@ -3302,7 +3575,7 @@
     const a = wireEndpointPoint(wire.id, "a");
     const b = wireEndpointPoint(wire.id, "b");
     const ids = [wireEndpointBoxContext(wire, "a", a).boxId, wireEndpointBoxContext(wire, "b", b).boxId]
-      .filter(Boolean);
+      .filter((id) => id && id !== SOURCE_CONDUIT_CONTEXT);
     Object.keys(wire.manualHoles || {}).forEach((boxId) => {
       if (boxById(boxId)) ids.push(boxId);
     });
@@ -3342,6 +3615,7 @@
   }
 
   function preferredBoxExitPoint(boxId, insidePoint, outsidePoint, connection, wire) {
+    if (boxId === SOURCE_CONDUIT_CONTEXT) return sourceConduitPoint();
     if (connection?.kind === "boxHole" && connection.boxId === boxId) {
       return boxHolePoint(boxId, connection.holeKey);
     }
@@ -3441,19 +3715,35 @@
     state.conduits.forEach((conduit) => {
       const a = conduit.a.connection;
       const b = conduit.b.connection;
-      if (a?.kind !== "boxHole" || b?.kind !== "boxHole" || a.boxId === b.boxId) return;
-      const aSide = { boxId: a.boxId, holeKey: a.holeKey, point: boxHolePoint(a.boxId, a.holeKey) };
-      const bSide = { boxId: b.boxId, holeKey: b.holeKey, point: boxHolePoint(b.boxId, b.holeKey) };
+      const aSide = conduitGraphSide(a);
+      const bSide = conduitGraphSide(b);
+      if (!aSide || !bSide || aSide.boxId === bSide.boxId) return;
       edges.push({ conduit, from: aSide, to: bSide });
       edges.push({ conduit, from: bSide, to: aSide });
     });
     return edges;
   }
 
+  function conduitGraphSide(connection) {
+    if (connection?.kind === "boxHole") {
+      return { boxId: connection.boxId, holeKey: connection.holeKey, point: boxHolePoint(connection.boxId, connection.holeKey) };
+    }
+    if (connection?.kind === "sourceConduit") {
+      return { boxId: SOURCE_CONDUIT_CONTEXT, holeKey: "source", point: sourceConduitPoint() };
+    }
+    return null;
+  }
+
   function conduitEdgeScore(edge, targetBoxId) {
-    const target = boxById(targetBoxId);
+    const target = contextAnchorPoint(targetBoxId);
     if (!target) return 0;
     return Math.hypot(edge.to.point.x - target.x, edge.to.point.y - target.y);
+  }
+
+  function contextAnchorPoint(boxId) {
+    if (boxId === SOURCE_CONDUIT_CONTEXT) return sourceConduitPoint();
+    const box = boxById(boxId);
+    return box ? { x: box.x, y: box.y } : null;
   }
 
   function openBoxHole(boxId, holeKey) {
@@ -3562,6 +3852,7 @@
 
   function targetPoint(connection) {
     if (connection.kind === "sourceTerminal") return sourceTerminalPoint(connection.key);
+    if (connection.kind === "sourceConduit") return sourceConduitPoint();
     if (connection.kind === "deviceTerminal") return deviceTerminalPoint(connection.deviceId, connection.terminalKey);
     if (connection.kind === "boxGround") return nodePoint({ kind: "boxGround", boxId: connection.boxId });
     if (connection.kind === "wireNut") return nodePoint({ kind: "wireNut", nutId: connection.id });
@@ -3572,6 +3863,19 @@
   function sourceTerminalPoint(key) {
     const offsets = { hot: { x: -35, y: 26 }, neutral: { x: 0, y: 26 }, ground: { x: 35, y: 26 } };
     return { x: state.source.x + offsets[key].x, y: state.source.y + offsets[key].y };
+  }
+
+  function sourceConduitPoint() {
+    return { x: state.source.x, y: state.source.y + SOURCE_SIZE.height / 2 };
+  }
+
+  function sourceConduitInUse() {
+    return state.conduits.some((conduit) => ["a", "b"].some((end) => conduit[end]?.connection?.kind === "sourceConduit"));
+  }
+
+  function nearestSourceConduitAtPoint(point, maxDistance = 58) {
+    const sourcePoint = sourceConduitPoint();
+    return Math.hypot(point.x - sourcePoint.x, point.y - sourcePoint.y) <= maxDistance ? { kind: "sourceConduit" } : null;
   }
 
   function boxHolePoint(boxId, holeKey) {
