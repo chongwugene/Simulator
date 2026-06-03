@@ -24,6 +24,8 @@
   const SOURCE_CONDUIT_CONTEXT = "source";
   const SMART_SNAP = {
     boxAlignment: 14,
+    boxDistribution: 26,
+    boxDistributionCrossAxis: 18,
     wireNode: 28,
     wireHole: 18,
     conduitNode: 34
@@ -855,16 +857,94 @@
     if (!stationaryBoxes.length) {
       return { dx, dy, guides: [] };
     }
+    const distributionSnap = bestBoxDistributionSnap(boxItems, starts, stationaryBoxes, dx, dy);
     const snapX = bestBoxAlignment(boxItems, starts, stationaryBoxes, dx, "x");
     const snapY = bestBoxAlignment(boxItems, starts, stationaryBoxes, dy, "y");
     const guides = [];
-    if (snapX) guides.push({ axis: "x", value: snapX.value });
-    if (snapY) guides.push({ axis: "y", value: snapY.value });
+    if (distributionSnap) {
+      guides.push(...distributionSnap.guides);
+      return {
+        dx: distributionSnap.dx,
+        dy: distributionSnap.dy,
+        guides
+      };
+    }
+    if (snapX) guides.push({ axis: "x", value: snapX.value, kind: "alignment" });
+    if (snapY) guides.push({ axis: "y", value: snapY.value, kind: "alignment" });
     return {
       dx: snapX ? snapX.delta : dx,
       dy: snapY ? snapY.delta : dy,
       guides
     };
+  }
+
+  function bestBoxDistributionSnap(boxItems, starts, stationaryBoxes, dx, dy) {
+    if (boxItems.length !== 1) return null;
+    const item = boxItems[0];
+    const start = starts.get(selectionKey(item));
+    if (!start) return null;
+    const proposed = { x: start.x + dx, y: start.y + dy };
+    const candidates = [
+      ...boxDistributionCandidates(stationaryBoxes, "x", "y"),
+      ...boxDistributionCandidates(stationaryBoxes, "y", "x")
+    ];
+    let best = null;
+    candidates.forEach((candidate) => {
+      const mainDistance = Math.abs(proposed[candidate.axis] - candidate[candidate.axis]);
+      const crossDistance = Math.abs(proposed[candidate.crossAxis] - candidate[candidate.crossAxis]);
+      if (mainDistance > SMART_SNAP.boxDistribution || crossDistance > SMART_SNAP.boxDistributionCrossAxis) return;
+      const score = mainDistance + crossDistance * 1.35 - 4;
+      if (!best || score < best.score) {
+        best = { ...candidate, score };
+      }
+    });
+    if (!best) return null;
+    return {
+      dx: best.x - start.x,
+      dy: best.y - start.y,
+      guides: [
+        { axis: "x", value: best.x, kind: "distribution" },
+        { axis: "y", value: best.y, kind: "distribution" }
+      ]
+    };
+  }
+
+  function boxDistributionCandidates(boxes, axis, crossAxis) {
+    const candidates = [];
+    boxes.forEach((first, firstIndex) => {
+      boxes.slice(firstIndex + 1).forEach((second) => {
+        const crossDelta = Math.abs(first[crossAxis] - second[crossAxis]);
+        if (crossDelta > SMART_SNAP.boxDistributionCrossAxis) return;
+        const axisDelta = Math.abs(first[axis] - second[axis]);
+        if (axisDelta < 1) return;
+        const before = first[axis] < second[axis] ? first : second;
+        const after = first[axis] < second[axis] ? second : first;
+        const crossValue = (first[crossAxis] + second[crossAxis]) / 2;
+        [
+          before[axis] - axisDelta,
+          after[axis] + axisDelta
+        ].forEach((axisValue) => {
+          const candidate = {
+            axis,
+            crossAxis,
+            x: axis === "x" ? axisValue : crossValue,
+            y: axis === "y" ? axisValue : crossValue,
+            spacing: axisDelta
+          };
+          if (boxCenterInsideBench(candidate)) {
+            candidates.push(candidate);
+          }
+        });
+      });
+    });
+    return candidates;
+  }
+
+  function boxCenterInsideBench(point) {
+    return point.x >= BOX_SIZE.width / 2 &&
+      point.x <= GRID.width - BOX_SIZE.width / 2 &&
+      point.y >= BOX_SIZE.height / 2 &&
+      point.y <= GRID.height - BOX_SIZE.height / 2;
   }
 
   function bestBoxAlignment(boxItems, starts, stationaryBoxes, delta, axis) {
@@ -4730,10 +4810,11 @@
   function showAlignmentGuides(guides = []) {
     const layer = ensureSmartGuideLayer();
     layer.innerHTML = guides.map((guide) => {
+      const guideClass = guide.kind ? ` ${escapeHtml(guide.kind)}` : "";
       if (guide.axis === "x") {
-        return `<span class="smart-guide-line vertical" style="left:${guide.value}px"></span>`;
+        return `<span class="smart-guide-line vertical${guideClass}" style="left:${guide.value}px"></span>`;
       }
-      return `<span class="smart-guide-line horizontal" style="top:${guide.value}px"></span>`;
+      return `<span class="smart-guide-line horizontal${guideClass}" style="top:${guide.value}px"></span>`;
     }).join("");
   }
 

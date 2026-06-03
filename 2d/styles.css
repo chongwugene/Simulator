@@ -1317,6 +1317,23 @@ body {
   transform: translateY(-0.5px);
 }
 
+.smart-guide-line.distribution {
+  background: rgba(16, 185, 129, 0.86);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.78),
+    0 0 16px rgba(16, 185, 129, 0.36);
+}
+
+.smart-guide-line.distribution.vertical {
+  width: 2px;
+  transform: translateX(-1px);
+}
+
+.smart-guide-line.distribution.horizontal {
+  height: 2px;
+  transform: translateY(-1px);
+}
+
 .smart-snap-indicator {
   position: absolute;
   width: 26px;
