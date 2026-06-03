@@ -513,6 +513,27 @@
       state.suppressClick = false;
       return;
     }
+    const gfciAction = event.target.closest("[data-gfci-action]");
+    if (gfciAction) {
+      const device = deviceById(gfciAction.closest("[data-item-type='device']")?.dataset.itemId);
+      if (device?.type === "gfciOutlet") {
+        if (gfciAction.dataset.gfciAction === "test") {
+          device.tripped = true;
+          state.upstream.lastTrip = {
+            device: device.id,
+            title: "Local GFCI tripped",
+            text: "The device TEST button opened this GFCI's protected face/load contacts without creating a branch-circuit short."
+          };
+          addLog("Local GFCI test button opened the device.");
+        } else {
+          device.tripped = false;
+          addLog("Local GFCI reset attempted.");
+        }
+        evaluateTrips();
+        render();
+      }
+      return;
+    }
     const probeMode = activeFaultProbeMode();
     if (probeMode) {
       const faultTarget = faultTargetFromPointer(event, probeMode);
@@ -526,22 +547,6 @@
         render();
         return;
       }
-    }
-    const gfciAction = event.target.closest("[data-gfci-action]");
-    if (gfciAction) {
-      const device = deviceById(gfciAction.closest("[data-item-type='device']")?.dataset.itemId);
-      if (device?.type === "gfciOutlet") {
-        if (gfciAction.dataset.gfciAction === "test") {
-          device.tripped = true;
-          addLog("Local GFCI test button opened the device.");
-        } else {
-          device.tripped = false;
-          addLog("Local GFCI reset attempted.");
-        }
-        evaluateTrips();
-        render();
-      }
-      return;
     }
     const switchAction = event.target.closest("[data-switch-action]");
     if (switchAction) {
@@ -1340,7 +1345,7 @@
       return ` The simulator sees a line-to-neutral short: ${hotNeutral.text} A GFCI compares current leaving on hot with current returning on neutral. In a hot-neutral short, that current can still be balanced, so the GFCI is not the protective device for that fault. The breaker trips for the overcurrent condition. Use the GFCI probe when you want to simulate leakage from hot to ground.`;
     }
     if (groundFault) {
-      return ` The simulator sees a ground fault: ${groundFault.text} That means hot is leaking to the equipment grounding path instead of returning only on neutral, so the upstream GFCI trips before the breaker in this protected source setup.`;
+      return ` The simulator sees a ground fault: ${groundFault.text} That means hot is leaking to the equipment grounding path instead of returning only on neutral. If the fault is on a local GFCI's protected face/load side, that local GFCI opens; otherwise the upstream GFCI-protected source opens before breaker overcurrent protection.`;
     }
     if (testFaults.some((fault) => fault.kind === "line-neutral")) {
       const energized = faultTargetEnergized(snapshot, testFaults.find((fault) => fault.kind === "line-neutral"));
@@ -1354,7 +1359,11 @@
       const energizedText = energized === false
         ? " In this exact board state, the touched receptacle or load is currently dead, so the probe is recorded but no GFCI should trip until that point is actually energized."
         : "";
-      return ` The active test is a ground-fault probe. If the touched object is energized from the protected source, the expected response is an upstream GFCI trip.${energizedText}`;
+      const lastTrip = snapshot.upstream.lastTrip?.title || "";
+      const tripText = lastTrip === "Local GFCI tripped"
+        ? " In this run, the simulator found a local GFCI protecting the touched point, so that local device tripped instead of the upstream source GFCI."
+        : " If the touched point is not on a local GFCI's protected face/load side, the upstream GFCI trips because it is the first GFCI protection feeding the power cable.";
+      return ` The active test is a ground-fault probe. It simulates leakage from hot to equipment ground, not a hot-neutral short.${tripText}${energizedText}`;
     }
     return "";
   }
@@ -1406,7 +1415,7 @@
     const boxText = box
       ? `${box.label}'s ground screw is ${box.ground?.connection === "open" ? "open" : `connected to ${box.ground?.connection}`}`
       : "an unwired box ground is open";
-    return ` ${boxText}. That does not trip by itself. A missing ground is an open bonding/safety path; it is not a fault-current path. In this simulator, the upstream GFCI trips when hot is actually connected to equipment ground, and the breaker trips when hot is tied to neutral. Since no hot conductor is touching the box ground node right now, there is no hot-ground or hot-neutral short to trip. The setup can still be incomplete or unsafe, but an open ground alone should not cause a trip.`;
+    return ` ${boxText}. That does not trip by itself. A missing ground is an open bonding/safety path; it is not a fault-current path. In this simulator, a GFCI trips when hot is actually leaking to equipment ground, and the breaker trips when hot is tied to neutral. A local GFCI should open for faults on its protected face/load side; the upstream source GFCI handles faults that do not have a local GFCI protecting that point. Since no hot conductor is touching the box ground node right now, there is no hot-ground or hot-neutral short to trip. The setup can still be incomplete or unsafe, but an open ground alone should not cause a trip.`;
   }
 
   function explainOutletDevice(device, requestedHalf, snapshot) {
@@ -1569,10 +1578,7 @@
       return [`${prefix}Hot`, `${prefix}Neutral`];
     }
     if (device.type === "gfciOutlet") {
-      if (mode === "ground-fault") {
-        return ["lineHot", "lineNeutral"];
-      }
-      return ["lineHot", "lineNeutral"];
+      return ["loadHot", "loadNeutral"];
     }
     return null;
   }
@@ -2040,7 +2046,7 @@
         faults.push({ type: "hot-neutral", severity: "trip", title: "Hot-neutral short", text: "Hot and neutral are tied together. The breaker trips for this overcurrent fault." });
       }
       if (root.hot && root.ground) {
-        faults.push({ type: "hot-ground", severity: "trip", title: "Ground fault", text: "Hot is touching the equipment grounding path. The upstream GFCI trips first in this protected setup." });
+        faults.push({ type: "hot-ground", severity: "trip", title: "Ground fault", text: "Hot is touching the equipment grounding path. The GFCI protecting that point should open before breaker overcurrent protection." });
       }
       if (root.neutral && root.ground && !root.hot) {
         faults.push({ type: "neutral-ground", severity: "warn", title: "Neutral-ground bond", text: "Neutral and equipment ground are tied downstream. This is not normal branch-circuit wiring." });
@@ -2107,14 +2113,64 @@
     return reports;
   }
 
+  function localGfciForActiveGroundFault(result) {
+    if (!result.faults.some((fault) => fault.type === "hot-ground")) return null;
+    const groundFaults = state.testFaults.filter((fault) => fault.kind === "ground-fault");
+    for (const fault of groundFaults) {
+      const local = localGfciForTestFault(fault, result);
+      if (local) {
+        return { device: local, fault };
+      }
+    }
+    return null;
+  }
+
+  function localGfciForTestFault(fault, result) {
+    const faultDevice = deviceById(fault.deviceId);
+    if (faultDevice?.type === "gfciOutlet" && result.activeGfcis.has(faultDevice.id) && !faultDevice.tripped) {
+      return faultDevice;
+    }
+    const hotNode = testFaultHotNode(fault);
+    if (!hotNode) return null;
+    const openGfciGraph = buildGraph(new Set());
+    return state.devices.find((device) => {
+      if (device.type !== "gfciOutlet" || device.tripped || !result.activeGfcis.has(device.id)) {
+        return false;
+      }
+      return openGfciGraph.find(hotNode) === openGfciGraph.find(deviceTerminalNode(device.id, "loadHot"));
+    }) || null;
+  }
+
+  function testFaultHotNode(fault) {
+    if (!fault) return null;
+    if (Array.isArray(fault.nodes) && fault.nodes.length >= 1) {
+      return fault.nodes[0];
+    }
+    if (Array.isArray(fault.terminals) && fault.terminals.length >= 1 && fault.deviceId) {
+      return deviceTerminalNode(fault.deviceId, fault.terminals[0]);
+    }
+    return null;
+  }
+
   function evaluateTrips() {
     const result = analyzeCircuit();
     if (!result.sourceAvailable) {
       return;
     }
+    const localGroundTrip = localGfciForActiveGroundFault(result);
+    if (localGroundTrip) {
+      localGroundTrip.device.tripped = true;
+      state.upstream.lastTrip = {
+        device: localGroundTrip.device.id,
+        title: "Local GFCI tripped",
+        text: `${DEVICE_DEFS[localGroundTrip.device.type].label} opened because the ground-fault probe is on its protected face/load side.`
+      };
+      addLog("Local GFCI tripped on a protected ground-fault probe.");
+      return;
+    }
     if (result.faults.some((fault) => fault.type === "hot-ground")) {
       state.upstream.gfciTripped = true;
-      state.upstream.lastTrip = { device: "upstreamGfci", title: "Upstream GFCI tripped", text: "Hot contacted ground on the protected load side." };
+      state.upstream.lastTrip = { device: "upstreamGfci", title: "Upstream GFCI tripped", text: "Hot contacted the equipment grounding path at a point not protected by a local GFCI device." };
       addLog("Upstream GFCI tripped on a ground fault.");
       return;
     }
@@ -4524,7 +4580,7 @@
     }
     if (outlet.type === "gfciOutlet") {
       return activeGfcis.has(outlet.id) && !outlet.tripped &&
-        loadCanRun(uf, info, deviceTerminalNode(outlet.id, "lineHot"), deviceTerminalNode(outlet.id, "lineNeutral"), faulted);
+        loadCanRun(uf, info, deviceTerminalNode(outlet.id, "loadHot"), deviceTerminalNode(outlet.id, "loadNeutral"), faulted);
     }
     return false;
   }

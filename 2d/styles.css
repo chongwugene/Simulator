@@ -4847,8 +4847,34 @@ h2,
 }
 
 .workspace-toolbar.command-bar {
-  grid-template-columns: 76px 176px minmax(250px, 1fr) minmax(430px, 0.95fr);
+  grid-template-columns: 76px 176px minmax(380px, 1fr);
   padding: 8px;
+}
+
+.workspace-toolbar .compact-group {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.workspace-toolbar .file-group {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.workspace-toolbar .mode-group {
+  grid-column: 3;
+  grid-row: 1;
+  min-width: 360px;
+}
+
+.workspace-toolbar .view-group {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+.workspace-toolbar .color-group {
+  grid-column: 1 / -1;
+  grid-row: 3;
 }
 
 .toolbar-group {
