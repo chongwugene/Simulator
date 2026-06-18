@@ -2271,6 +2271,16 @@ button.device-face {
     0 8px 16px rgba(31, 111, 235, 0.18);
 }
 
+.box-hole-node.cable-used {
+  border-color: #b87818;
+  background:
+    radial-gradient(circle at 50% 50%, #fffdf5 0 3px, #d49a38 4px 6px, rgba(244, 202, 92, 0.52) 7px 100%);
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.95),
+    0 0 0 5px rgba(212, 154, 56, 0.28),
+    0 8px 16px rgba(136, 87, 21, 0.18);
+}
+
 .box-hole-node.selected-wire-route {
   border-color: #7c3aed;
   background:
@@ -2477,6 +2487,28 @@ button.device-face {
     0 0 0 2px rgba(255, 255, 255, 0.95),
     0 0 0 6px rgba(31, 111, 235, 0.22),
     0 5px 12px rgba(31, 111, 235, 0.2);
+}
+
+.romex-end-node {
+  z-index: 43;
+  width: 17px;
+  height: 17px;
+  border: 2px solid rgba(136, 87, 21, 0.82);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 50% 50%, #fff7d6 0 3px, #d49a38 4px 100%);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.82), 0 3px 8px rgba(61, 44, 19, 0.2);
+  cursor: grab;
+}
+
+.romex-end-node.connected {
+  border-color: #1f6feb;
+  background:
+    radial-gradient(circle at 50% 50%, #ffffff 0 3px, #d49a38 4px 7px, #1f6feb 8px 100%);
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.95),
+    0 0 0 6px rgba(212, 154, 56, 0.22),
+    0 5px 12px rgba(61, 44, 19, 0.2);
 }
 
 .grid-node {
@@ -2687,6 +2719,15 @@ button.device-face {
   filter:
     drop-shadow(0 0 4px rgba(30, 111, 216, 0.5))
     drop-shadow(0 1px 2px rgba(96, 63, 23, 0.18));
+}
+
+.romex-hit-path {
+  fill: none;
+  stroke: rgba(0, 0, 0, 0);
+  stroke-width: 30px;
+  stroke-linecap: round;
+  pointer-events: stroke;
+  cursor: grab;
 }
 
 .wire-select-halo {

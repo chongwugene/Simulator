@@ -28,6 +28,7 @@
     boxDistributionCrossAxis: 18,
     wireNode: 28,
     wireHole: 18,
+    cableNode: 34,
     conduitNode: 34
   };
   const DEFAULT_GRID_COLOR = "#f8fafc";
@@ -652,7 +653,7 @@
       return;
     }
     const node = event.target.closest(".grid-node");
-    if (node && ["wire-end", "conduit-end"].includes(node.dataset.nodeType)) {
+    if (node && ["wire-end", "conduit-end", "cable-end"].includes(node.dataset.nodeType)) {
       startEndpointDrag(event, node);
       return;
     }
@@ -809,10 +810,14 @@
       }
       if (item.type === "cable") {
         const cable = cableById(item.id);
-        starts.set(key, (cable?.wireIds || []).map((wireId) => {
-          const wire = wireById(wireId);
-          return wire ? { wireId, a: cloneValue(wire.a), b: cloneValue(wire.b) } : null;
-        }).filter(Boolean));
+        ensureCableEndpoints(cable);
+        starts.set(key, {
+          cable: cable ? { a: cloneValue(cable.a), b: cloneValue(cable.b) } : null,
+          wires: (cable?.wireIds || []).map((wireId) => {
+            const wire = wireById(wireId);
+            return wire ? { wireId, a: cloneValue(wire.a), b: cloneValue(wire.b) } : null;
+          }).filter(Boolean)
+        });
         return;
       }
       if (item.type === "conduit") {
@@ -836,7 +841,7 @@
         return;
       }
       if (item.type === "cable") {
-        moveCableFromStart(start, dx, dy);
+        moveCableFromStart(item.id, start, dx, dy);
         return;
       }
       if (item.type === "conduit") {
@@ -1000,8 +1005,30 @@
     });
   }
 
-  function moveCableFromStart(startWires, dx, dy) {
-    startWires.forEach((entry) => moveWireFromStart(entry.wireId, entry, dx, dy));
+  function moveCableFromStart(cableId, start, dx, dy) {
+    const cable = cableById(cableId);
+    if (cable && start.cable) {
+      ["a", "b"].forEach((end) => {
+        if (start.cable[end]?.connection) {
+          cable[end].connection = cloneValue(start.cable[end].connection);
+          return;
+        }
+        cable[end].connection = null;
+        cable[end].x = clamp(start.cable[end].x + dx, 18, GRID.width - 18);
+        cable[end].y = clamp(start.cable[end].y + dy, 18, GRID.height - 18);
+      });
+    }
+    (start.wires || []).forEach((entry) => moveWireFromStart(entry.wireId, entry, dx, dy));
+  }
+
+  function moveCableFreeConductorEnd(cable, end, dx, dy) {
+    if (!cable || (!dx && !dy)) return;
+    cable.wireIds.forEach((wireId) => {
+      const wire = wireById(wireId);
+      if (!wire || wire[end]?.connection) return;
+      wire[end].x = clamp(wire[end].x + dx, 18, GRID.width - 18);
+      wire[end].y = clamp(wire[end].y + dy, 18, GRID.height - 18);
+    });
   }
 
   function moveConduitFromStart(conduitId, start, dx, dy) {
@@ -1075,6 +1102,8 @@
     }
     if (node.kind === "wireEndpoint") {
       selectItem("wire", node.wireId);
+    } else if (node.kind === "cableEndpoint") {
+      selectItem("cable", node.cableId);
     } else if (node.kind === "sourceTerminal") {
       selectItem("source", state.source.id);
     } else if (node.kind === "deviceTerminal") {
@@ -1871,7 +1900,9 @@
       id: makeId("cable"),
       type,
       label: `${def.label} ${state.cables.length + 1}`,
-      wireIds: []
+      wireIds: [],
+      a: { x: clamp(point.x - 82, 25, GRID.width - 25), y: point.y, connection: null },
+      b: { x: clamp(point.x + 82, 25, GRID.width - 25), y: point.y, connection: null }
     };
     const spread = def.conductors.length === 3 ? [-14, 0, 14] : [-18, -6, 6, 18];
     def.conductors.forEach((conductor, index) => {
@@ -1915,8 +1946,12 @@
       applyConduitEndpointDrag(from, target, point);
       return;
     }
+    if (from.kind === "cableEndpoint") {
+      applyCableEndpointDrag(from, target, point);
+      return;
+    }
     if (from.kind !== "wireEndpoint") {
-      addLog("Start from a wire end or conduit end, then drop onto a connector.");
+      addLog("Start from a wire end, Romex jacket end, or conduit end, then drop onto a connector.");
       return;
     }
     const endpoint = getWireEndpoint(from.wireId, from.end);
@@ -1983,6 +2018,29 @@
     endpoint.x = clamp(point.x, 18, GRID.width - 18);
     endpoint.y = clamp(point.y, 18, GRID.height - 18);
     addLog(`${conduit.label} end left open. EMT ends lock to box knockouts or the Power In conduit port.`);
+  }
+
+  function applyCableEndpointDrag(from, target, point) {
+    const cable = cableById(from.cableId);
+    const endpoint = cable?.[from.end];
+    if (!cable || !endpoint) return;
+    const oldPoint = cableEndpointPoint(cable.id, from.end);
+    const holeTarget = target?.kind === "boxHole" ? target : nearestBoxHoleAtPoint(point, 78);
+    const nextPoint = holeTarget ? boxHolePoint(holeTarget.boxId, holeTarget.holeKey) : {
+      x: clamp(point.x, 18, GRID.width - 18),
+      y: clamp(point.y, 18, GRID.height - 18)
+    };
+    moveCableFreeConductorEnd(cable, from.end, nextPoint.x - oldPoint.x, nextPoint.y - oldPoint.y);
+    if (holeTarget) {
+      endpoint.connection = { kind: "boxHole", boxId: holeTarget.boxId, holeKey: holeTarget.holeKey };
+      openBoxHole(holeTarget.boxId, holeTarget.holeKey);
+      addLog(`${cable.label} jacket end ${from.end.toUpperCase()} landed at ${boxHoleLabel(holeTarget)}.`);
+      return;
+    }
+    endpoint.connection = null;
+    endpoint.x = nextPoint.x;
+    endpoint.y = nextPoint.y;
+    addLog(`${cable.label} jacket end ${from.end.toUpperCase()} left open.`);
   }
 
   function buildGraph(activeGfcis = new Set()) {
@@ -2458,6 +2516,7 @@
       renderSource(result),
       ...state.boxes.map((box) => renderBox(box, result)),
       ...state.cables.map(renderRomexHandle),
+      ...state.cables.flatMap((cable) => [renderRomexEndpoint(cable, "a"), renderRomexEndpoint(cable, "b")]),
       ...state.conduits.flatMap((conduit) => [renderConduitEndpoint(conduit, "a"), renderConduitEndpoint(conduit, "b")]),
       ...state.wireNuts.map(renderWireNut),
       ...state.devices.map((device) => renderDevice(device, result)),
@@ -2491,22 +2550,50 @@
     const selected = isSelected("box", box.id);
     const holeUse = usedBoxHoles(box.id);
     const selectedWire = selectedItem()?.type === "wire" ? wireById(selectedItem().id) : null;
+    const selectedCable = selectedItem()?.type === "cable" ? cableById(selectedItem().id) : null;
     return `
       <div class="box-card box-4x4 ${selected ? "selected" : ""}" data-item-type="box" data-item-id="${box.id}" style="${posStyle(box.x, box.y)}">
         <span class="box-title"><span>${escapeHtml(box.label)}</span><span>4x4</span></span>
-        <span class="box-knockouts">${BOX_HOLES.map((hole) => renderBoxHole(box, hole, holeUse.used.has(hole.key), holeUse.conduitUsed.has(hole.key), selectedWire?.manualHoles?.[box.id] === hole.key)).join("")}</span>
+        <span class="box-knockouts">${BOX_HOLES.map((hole) => renderBoxHole(
+          box,
+          hole,
+          holeUse.used.has(hole.key),
+          holeUse.conduitUsed.has(hole.key),
+          holeUse.cableUsed.has(hole.key),
+          selectedWire?.manualHoles?.[box.id] === hole.key,
+          selectedCableUsesHole(selectedCable, box.id, hole.key)
+        )).join("")}</span>
         <span class="grid-node box-ground-node screw-green ${nodeConnectionClasses({ kind: "boxGround", boxId: box.id })}" data-node-type="box-ground" data-box-id="${box.id}" title="Box ground screw"></span>
       </div>
     `;
   }
 
-  function renderBoxHole(box, hole, used, conduitUsed, selectedWireRoute) {
+  function renderBoxHole(box, hole, used, conduitUsed, cableUsed, selectedWireRoute, selectedCableRoute) {
     return `
-      <span class="grid-node box-hole-node open ${used ? "used" : ""} ${conduitUsed ? "conduit-used" : ""} ${selectedWireRoute ? "selected-wire-route" : ""}"
+      <span class="grid-node box-hole-node open ${used ? "used" : ""} ${conduitUsed ? "conduit-used" : ""} ${cableUsed ? "cable-used" : ""} ${selectedWireRoute ? "selected-wire-route" : ""} ${selectedCableRoute ? "selected-cable-route" : ""}"
         data-node-type="box-hole" data-box-id="${box.id}" data-hole-key="${hole.key}"
         style="left:${BOX_SIZE.width / 2 + hole.x}px; top:${BOX_SIZE.height / 2 + hole.y}px"
         title="${escapeHtml(hole.label)} - open knockout"></span>
     `;
+  }
+
+  function renderRomexEndpoint(cable, end) {
+    ensureCableEndpoints(cable);
+    const point = cableEndpointPoint(cable.id, end);
+    const connected = cable[end]?.connection ? "connected" : "";
+    const selected = isSelected("cable", cable.id) ? "selected" : "";
+    return `
+      <span class="grid-node romex-end-node ${connected} ${selected}" data-node-type="cable-end" data-cable-id="${cable.id}" data-cable-end="${end}"
+        data-item-type="cable" data-item-id="${cable.id}" style="${posStyle(point.x, point.y)}" title="${escapeHtml(cable.label)} jacket end ${end.toUpperCase()}"></span>
+    `;
+  }
+
+  function selectedCableUsesHole(cable, boxId, holeKey) {
+    if (!cable) return false;
+    return ["a", "b"].some((end) => {
+      const connection = cable[end]?.connection;
+      return connection?.kind === "boxHole" && connection.boxId === boxId && connection.holeKey === holeKey;
+    });
   }
 
   function renderRomexHandle(cable) {
@@ -2684,10 +2771,14 @@
   }
 
   function renderRomexSheath(cable) {
-    const conductors = cable.wireIds.map(wireById).filter(Boolean);
-    if (!conductors.length) return "";
-    const path = wirePath(conductors[0]);
-    return `<path class="romex-sheath ${cable.type} ${isSelected("cable", cable.id) ? "selected" : ""}" d="${path}"></path>`;
+    ensureCableEndpoints(cable);
+    const path = smoothPolylinePath(cableSheathRoutePoints(cable));
+    if (!path) return "";
+    const selected = isSelected("cable", cable.id);
+    return `
+      <path class="romex-sheath ${cable.type} ${selected ? "selected" : ""}" data-cable-sheath="${cable.id}" d="${path}"></path>
+      <path class="romex-hit-path" data-cable-sheath="${cable.id}" data-item-type="cable" data-item-id="${cable.id}" d="${path}"></path>
+    `;
   }
 
   function averageWireEndpoint(wires, end) {
@@ -2699,20 +2790,37 @@
   }
 
   function cableCenter(cable) {
-    const conductors = cable?.wireIds.map(wireById).filter(Boolean) || [];
-    if (!conductors.length) return null;
-    const a = averageWireEndpoint(conductors, "a");
-    const b = averageWireEndpoint(conductors, "b");
+    ensureCableEndpoints(cable);
+    if (!cable?.a || !cable?.b) return null;
+    const a = cableEndpointPoint(cable.id, "a");
+    const b = cableEndpointPoint(cable.id, "b");
     const controls = curveControls(a, b);
     return cubicPoint(a, controls.c1, controls.c2, b, 0.5);
   }
 
   function cableAngle(cable) {
-    const conductors = cable?.wireIds.map(wireById).filter(Boolean) || [];
-    if (!conductors.length) return 0;
-    const a = averageWireEndpoint(conductors, "a");
-    const b = averageWireEndpoint(conductors, "b");
+    ensureCableEndpoints(cable);
+    if (!cable?.a || !cable?.b) return 0;
+    const a = cableEndpointPoint(cable.id, "a");
+    const b = cableEndpointPoint(cable.id, "b");
     return (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+  }
+
+  function cableSheathRoutePoints(cable) {
+    ensureCableEndpoints(cable);
+    if (!cable?.a || !cable?.b) return [];
+    return removeDuplicatePoints([cableEndpointPoint(cable.id, "a"), cableEndpointPoint(cable.id, "b")]);
+  }
+
+  function ensureCableEndpoints(cable) {
+    if (!cable) return null;
+    const conductors = cable.wireIds?.map(wireById).filter(Boolean) || [];
+    if (cable.a && cable.b) return cable;
+    const fallbackA = conductors.length ? averageWireEndpoint(conductors, "a") : { x: 120, y: 120 };
+    const fallbackB = conductors.length ? averageWireEndpoint(conductors, "b") : { x: fallbackA.x + 140, y: fallbackA.y };
+    if (!cable.a) cable.a = { x: fallbackA.x, y: fallbackA.y, connection: null };
+    if (!cable.b) cable.b = { x: fallbackB.x, y: fallbackB.y, connection: null };
+    return cable;
   }
 
   function conduitCenter(conduit) {
@@ -3376,7 +3484,14 @@
       hideContextMenu();
       return;
     }
+    ensureCableEndpoints(cable);
     recordHistory();
+    ["a", "b"].forEach((end) => {
+      if (cable[end]?.connection) return;
+      const point = rotatePoint({ x: cable[end].x, y: cable[end].y }, center, delta);
+      cable[end].x = clamp(point.x, 18, GRID.width - 18);
+      cable[end].y = clamp(point.y, 18, GRID.height - 18);
+    });
     wires.forEach((wire) => {
       ["a", "b"].forEach((end) => {
         if (wire[end]?.connection) return;
@@ -3701,6 +3816,7 @@
     state.devices = cloneValue(snapshot.devices) || [];
     state.wires = cloneValue(snapshot.wires) || [];
     state.cables = cloneValue(snapshot.cables) || [];
+    state.cables.forEach(ensureCableEndpoints);
     state.wireNuts = cloneValue(snapshot.wireNuts) || [];
     state.conduits = cloneValue(snapshot.conduits) || [];
     state.upstream = cloneValue(snapshot.upstream) || cloneValue(INITIAL_UPSTREAM);
@@ -3790,6 +3906,14 @@
         conduit[end].y = clamp(conduit[end].y, 18, state.bench.height - 18);
       });
     });
+    state.cables.forEach((cable) => {
+      ensureCableEndpoints(cable);
+      ["a", "b"].forEach((end) => {
+        if (cable[end]?.connection) return;
+        cable[end].x = clamp(cable[end].x, 18, state.bench.width - 18);
+        cable[end].y = clamp(cable[end].y, 18, state.bench.height - 18);
+      });
+    });
     state.devices.forEach((device) => {
       if (device.boxId || device.pluggedTarget) return;
       clampObjectPoint(device, deviceSize(device));
@@ -3853,6 +3977,14 @@
       if (wire.manualHoles && target.kind === "boxHole" && wire.manualHoles[target.boxId] === target.holeKey) {
         delete wire.manualHoles[target.boxId];
       }
+    });
+    state.cables.forEach((cable) => {
+      ensureCableEndpoints(cable);
+      ["a", "b"].forEach((end) => {
+        if (connectionMatches(cable[end]?.connection, target)) {
+          cable[end].connection = null;
+        }
+      });
     });
     state.conduits.forEach((conduit) => {
       ["a", "b"].forEach((end) => {
@@ -3939,6 +4071,7 @@
     if (type === "box-hole") return { kind: "boxHole", boxId: element.dataset.boxId, holeKey: element.dataset.holeKey };
     if (type === "wire-nut") return { kind: "wireNut", nutId: element.dataset.nutId };
     if (type === "conduit-end") return { kind: "conduitEndpoint", conduitId: element.dataset.conduitId, end: element.dataset.conduitEnd };
+    if (type === "cable-end") return { kind: "cableEndpoint", cableId: element.dataset.cableId, end: element.dataset.cableEnd };
     return null;
   }
 
@@ -3966,6 +4099,9 @@
     }
     if (from?.kind === "conduitEndpoint") {
       return nearestSnapCandidate(point, conduitSnapCandidates(from));
+    }
+    if (from?.kind === "cableEndpoint") {
+      return nearestSnapCandidate(point, cableSnapCandidates(from));
     }
     return { point, target: null };
   }
@@ -4045,6 +4181,20 @@
     return candidates.filter((candidate) => !sameSnapNode(candidate.node, from));
   }
 
+  function cableSnapCandidates(from) {
+    const candidates = [];
+    state.boxes.forEach((box) => {
+      BOX_HOLES.forEach((hole) => {
+        candidates.push({
+          node: { kind: "boxHole", boxId: box.id, holeKey: hole.key },
+          maxDistance: SMART_SNAP.cableNode,
+          priority: 0
+        });
+      });
+    });
+    return candidates.filter((candidate) => !sameSnapNode(candidate.node, from));
+  }
+
   function sameSnapNode(a, b) {
     return snapNodeKey(a) === snapNodeKey(b);
   }
@@ -4059,6 +4209,7 @@
     if (node.kind === "wireNut") return `wire-nut:${node.nutId || node.id}`;
     if (node.kind === "boxHole") return `box-hole:${node.boxId}:${node.holeKey}`;
     if (node.kind === "conduitEndpoint") return `conduit:${node.conduitId}:${node.end}`;
+    if (node.kind === "cableEndpoint") return `cable:${node.cableId}:${node.end}`;
     return `${node.kind || "node"}:${JSON.stringify(node)}`;
   }
 
@@ -4080,6 +4231,7 @@
     if (node.kind === "wireNut") return element.dataset.nodeType === "wire-nut" && element.dataset.nutId === node.nutId;
     if (node.kind === "boxHole") return element.dataset.nodeType === "box-hole" && element.dataset.boxId === node.boxId && element.dataset.holeKey === node.holeKey;
     if (node.kind === "conduitEndpoint") return element.dataset.nodeType === "conduit-end" && element.dataset.conduitId === node.conduitId && element.dataset.conduitEnd === node.end;
+    if (node.kind === "cableEndpoint") return element.dataset.nodeType === "cable-end" && element.dataset.cableId === node.cableId && element.dataset.cableEnd === node.end;
     return false;
   }
 
@@ -4099,6 +4251,7 @@
     }
     if (node.kind === "boxHole") return boxHolePoint(node.boxId, node.holeKey);
     if (node.kind === "conduitEndpoint") return conduitEndpointPoint(node.conduitId, node.end);
+    if (node.kind === "cableEndpoint") return cableEndpointPoint(node.cableId, node.end);
     return null;
   }
 
@@ -4123,6 +4276,8 @@
       const box = nut ? boxAtPoint(nut.x, nut.y) : null;
       if (box) return { boxId: box.id };
     }
+    const cableHole = cableEndpointBoxHole(wire, end);
+    if (cableHole) return { boxId: cableHole.boxId, holeKey: cableHole.holeKey };
     const box = boxAtPoint(point.x, point.y);
     return box ? { boxId: box.id } : { boxId: null };
   }
@@ -4171,10 +4326,14 @@
     render();
   }
 
-  function preferredBoxExitPoint(boxId, insidePoint, outsidePoint, connection, wire) {
+  function preferredBoxExitPoint(boxId, insidePoint, outsidePoint, connection, wire, end) {
     if (boxId === SOURCE_CONDUIT_CONTEXT) return sourceConduitPoint();
     if (connection?.kind === "boxHole" && connection.boxId === boxId) {
       return boxHolePoint(boxId, connection.holeKey);
+    }
+    const cableHole = cableEndpointBoxHole(wire, end);
+    if (cableHole?.boxId === boxId) {
+      return boxHolePoint(boxId, cableHole.holeKey);
     }
     const box = boxById(boxId);
     if (!box) return insidePoint;
@@ -4188,6 +4347,28 @@
     }
     const hole = bestBoxHole(box, insidePoint, outsidePoint);
     return boxHolePoint(boxId, hole.key);
+  }
+
+  function cableEndpointBoxHole(wire, end) {
+    const cable = wire?.cableId ? cableById(wire.cableId) : null;
+    ensureCableEndpoints(cable);
+    const connection = cable?.[end]?.connection;
+    return connection?.kind === "boxHole" ? { boxId: connection.boxId, holeKey: connection.holeKey } : null;
+  }
+
+  function cableRouteForWire(wire, contextA, contextB) {
+    const cable = wire?.cableId ? cableById(wire.cableId) : null;
+    ensureCableEndpoints(cable);
+    if (!cable?.a?.connection || !cable?.b?.connection) return null;
+    const endA = cableEndpointBoxHole(wire, "a");
+    const endB = cableEndpointBoxHole(wire, "b");
+    if (!endA || !endB) return null;
+    const sameDirection = endA.boxId === contextA.boxId && endB.boxId === contextB.boxId;
+    const reverseDirection = endA.boxId === contextB.boxId && endB.boxId === contextA.boxId;
+    if (!sameDirection && !reverseDirection) return null;
+    return sameDirection
+      ? [cableEndpointPoint(cable.id, "a"), cableEndpointPoint(cable.id, "b")]
+      : [cableEndpointPoint(cable.id, "b"), cableEndpointPoint(cable.id, "a")];
   }
 
   function bestBoxHole(box, insidePoint, outsidePoint) {
@@ -4346,6 +4527,7 @@
   function usedBoxHoles(boxId) {
     const used = new Set();
     const conduitUsed = new Set();
+    const cableUsed = new Set();
     state.wires.forEach((wire) => {
       ["a", "b"].forEach((end) => {
         const connection = wire[end]?.connection;
@@ -4354,6 +4536,16 @@
       wireRoutePoints(wire).forEach((point) => {
         const hole = BOX_HOLES.find((entry) => Math.hypot(point.x - (boxById(boxId)?.x || 0) - entry.x, point.y - (boxById(boxId)?.y || 0) - entry.y) < 1);
         if (hole) used.add(hole.key);
+      });
+    });
+    state.cables.forEach((cable) => {
+      ensureCableEndpoints(cable);
+      ["a", "b"].forEach((end) => {
+        const connection = cable[end]?.connection;
+        if (connection?.kind === "boxHole" && connection.boxId === boxId) {
+          used.add(connection.holeKey);
+          cableUsed.add(connection.holeKey);
+        }
       });
     });
     state.conduits.forEach((conduit) => {
@@ -4365,7 +4557,7 @@
         }
       });
     });
-    return { used, conduitUsed };
+    return { used, conduitUsed, cableUsed };
   }
 
   function wireCopperSegment(wire, end) {
@@ -4447,6 +4639,14 @@
   function conduitEndpointPoint(conduitId, end) {
     const conduit = conduitById(conduitId);
     const endpoint = conduit?.[end];
+    if (!endpoint) return { x: 0, y: 0 };
+    return endpoint.connection ? targetPoint(endpoint.connection) : { x: endpoint.x, y: endpoint.y };
+  }
+
+  function cableEndpointPoint(cableId, end) {
+    const cable = cableById(cableId);
+    ensureCableEndpoints(cable);
+    const endpoint = cable?.[end];
     if (!endpoint) return { x: 0, y: 0 };
     return endpoint.connection ? targetPoint(endpoint.connection) : { x: endpoint.x, y: endpoint.y };
   }
@@ -4568,14 +4768,18 @@
     if (!contextA.boxId && !contextB.boxId) return [a, b];
     if (contextA.boxId && contextA.boxId === contextB.boxId) return [a, b];
     if (contextA.boxId && contextB.boxId) {
+      const cableRoute = cableRouteForWire(wire, contextA, contextB);
+      if (cableRoute) {
+        return removeDuplicatePoints([a, ...cableRoute, b]);
+      }
       const conduitRoute = conduitRouteBetweenBoxes(contextA.boxId, contextB.boxId);
       if (conduitRoute) {
         return removeDuplicatePoints([a, ...conduitRoute.points, b]);
       }
     }
     const points = [a];
-    if (contextA.boxId) points.push(preferredBoxExitPoint(contextA.boxId, a, b, wire.a.connection, wire));
-    if (contextB.boxId) points.push(preferredBoxExitPoint(contextB.boxId, b, a, wire.b.connection, wire));
+    if (contextA.boxId) points.push(preferredBoxExitPoint(contextA.boxId, a, b, wire.a.connection, wire, "a"));
+    if (contextB.boxId) points.push(preferredBoxExitPoint(contextB.boxId, b, a, wire.b.connection, wire, "b"));
     points.push(b);
     return removeDuplicatePoints(points);
   }
