@@ -31,7 +31,7 @@
     conduitNode: 34
   };
   const DEFAULT_GRID_COLOR = "#f8fafc";
-  const INITIAL_SOURCE = { id: "source_1", x: 128, y: 312 };
+  const INITIAL_SOURCE = { id: "source_1", x: 128, y: 312, rotation: 0 };
   const INITIAL_UPSTREAM = {
     breakerOn: true,
     breakerTripped: false,
@@ -2468,8 +2468,12 @@
 
   function renderSource(result) {
     const selected = isSelected("source", state.source.id);
+    const rotation = sourceRotation();
+    const size = sourceSize();
     return `
-      <div class="source-card ${selected ? "selected" : ""}" data-item-type="source" data-item-id="${state.source.id}" style="${posStyle(state.source.x, state.source.y)}">
+      <div class="source-card rotation-${rotation} ${selected ? "selected" : ""}" data-item-type="source" data-item-id="${state.source.id}" data-rotation="${rotation}"
+        style="${posStyle(state.source.x, state.source.y)}; width:${size.width}px; height:${size.height}px">
+        <div class="source-rotor" style="width:${SOURCE_SIZE.width}px; height:${SOURCE_SIZE.height}px; transform: translate(-50%, -50%) rotate(${rotation}deg)">
         <span class="source-title">Power in</span>
         <button class="source-plug-button ${state.upstream.pluggedIn ? "on" : "off"}" type="button" data-action="toggle-plug" title="Toggle Power In">${state.upstream.pluggedIn ? "ON" : "OFF"}</button>
         ${["hot", "neutral", "ground"].map((key) => `
@@ -2478,6 +2482,7 @@
         `).join("")}
         <span class="grid-node source-conduit-node ${sourceConduitInUse() ? "connected" : ""}"
           data-node-type="source-conduit" title="Power In conduit port"></span>
+        </div>
       </div>
     `;
   }
@@ -2509,8 +2514,10 @@
     if (!point) return "";
     const selected = isSelected("cable", cable.id);
     const conductorCount = cable.wireIds.map(wireById).filter(Boolean).length;
+    const angle = cableAngle(cable);
     return `
-      <div class="romex-handle ${cable.type} ${selected ? "selected" : ""}" data-item-type="cable" data-item-id="${cable.id}" style="${posStyle(point.x, point.y)}" title="${escapeHtml(cable.label)}">
+      <div class="romex-handle ${cable.type} ${selected ? "selected" : ""}" data-item-type="cable" data-item-id="${cable.id}" data-rotation="${Math.round(angle)}"
+        style="${posStyle(point.x, point.y)}; transform: translate(-50%, -50%) rotate(${angle}deg)" title="${escapeHtml(cable.label)}">
         <span class="romex-jacket"></span>
         <span class="romex-conductor-count">${conductorCount}</span>
       </div>
@@ -2698,6 +2705,14 @@
     const b = averageWireEndpoint(conductors, "b");
     const controls = curveControls(a, b);
     return cubicPoint(a, controls.c1, controls.c2, b, 0.5);
+  }
+
+  function cableAngle(cable) {
+    const conductors = cable?.wireIds.map(wireById).filter(Boolean) || [];
+    if (!conductors.length) return 0;
+    const a = averageWireEndpoint(conductors, "a");
+    const b = averageWireEndpoint(conductors, "b");
+    return (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
   }
 
   function conduitCenter(conduit) {
@@ -3082,8 +3097,27 @@
     return Boolean(device && ROTATABLE_DEVICE_TYPES.has(device.type));
   }
 
+  function isRotatableSelection(selected = selectedItem()) {
+    if (!selected) return false;
+    if (selected.type === "source" || selected.type === "cable" || selected.type === "conduit") return true;
+    if (selected.type === "device") return isRotatableDevice(deviceById(selected.id));
+    return false;
+  }
+
   function deviceRotation(device) {
     return normalizeRotation(Number(device?.rotation || 0));
+  }
+
+  function sourceRotation() {
+    return normalizeRotation(Number(state.source?.rotation || 0));
+  }
+
+  function sourceSize() {
+    const rotation = sourceRotation();
+    if (rotation === 90 || rotation === 270) {
+      return { width: SOURCE_SIZE.height, height: SOURCE_SIZE.width };
+    }
+    return SOURCE_SIZE;
   }
 
   function normalizeRotation(value) {
@@ -3093,6 +3127,16 @@
 
   function rotateDeviceOffset(device, x, y) {
     const angle = (deviceRotation(device) * Math.PI) / 180;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    return {
+      x: x * cos - y * sin,
+      y: x * sin + y * cos
+    };
+  }
+
+  function rotateSourceOffset(x, y) {
+    const angle = (sourceRotation() * Math.PI) / 180;
     const cos = Math.cos(angle);
     const sin = Math.sin(angle);
     return {
@@ -3134,7 +3178,7 @@
 
   function moveItem(type, id, x, y) {
     if (type === "source") {
-      const point = clampPointForSize(x, y, SOURCE_SIZE);
+      const point = clampPointForSize(x, y, sourceSize());
       state.source.x = point.x;
       state.source.y = point.y;
     }
@@ -3293,6 +3337,14 @@
 
   function rotateSelected(delta) {
     const selected = selectedItem();
+    if (selected?.type === "source") {
+      rotateSource(delta);
+      return;
+    }
+    if (selected?.type === "cable") {
+      rotateSelectedCable(delta);
+      return;
+    }
     if (selected?.type === "conduit") {
       rotateSelectedConduit(delta);
       return;
@@ -3302,6 +3354,40 @@
       return;
     }
     hideContextMenu();
+  }
+
+  function rotateSource(delta) {
+    recordHistory();
+    state.source.rotation = normalizeRotation(sourceRotation() + delta);
+    const point = clampPointForSize(state.source.x, state.source.y, sourceSize());
+    state.source.x = point.x;
+    state.source.y = point.y;
+    addLog(`Power In rotated ${delta > 0 ? "clockwise" : "counterclockwise"}.`);
+    hideContextMenu();
+    render();
+  }
+
+  function rotateSelectedCable(delta) {
+    const selected = selectedItem();
+    const cable = selected?.type === "cable" ? cableById(selected.id) : null;
+    const wires = cable?.wireIds.map(wireById).filter(Boolean) || [];
+    const center = cableCenter(cable);
+    if (!cable || !wires.length || !center) {
+      hideContextMenu();
+      return;
+    }
+    recordHistory();
+    wires.forEach((wire) => {
+      ["a", "b"].forEach((end) => {
+        if (wire[end]?.connection) return;
+        const point = rotatePoint({ x: wire[end].x, y: wire[end].y }, center, delta);
+        wire[end].x = clamp(point.x, 18, GRID.width - 18);
+        wire[end].y = clamp(point.y, 18, GRID.height - 18);
+      });
+    });
+    addLog(`${cable.label} rotated ${delta > 0 ? "clockwise" : "counterclockwise"}.`);
+    hideContextMenu();
+    render();
   }
 
   function rotateSelectedDevice(delta) {
@@ -3609,7 +3695,8 @@
 
     state.nextId = Number.isFinite(snapshot.nextId) ? snapshot.nextId : 1;
     state.selected = cloneValue(snapshot.selected) || { type: "source", id: INITIAL_SOURCE.id };
-    state.source = cloneValue(snapshot.source) || { ...INITIAL_SOURCE };
+    state.source = { ...INITIAL_SOURCE, ...(cloneValue(snapshot.source) || {}) };
+    state.source.rotation = sourceRotation();
     state.boxes = cloneValue(snapshot.boxes) || [];
     state.devices = cloneValue(snapshot.devices) || [];
     state.wires = cloneValue(snapshot.wires) || [];
@@ -3693,7 +3780,7 @@
   }
 
   function clampAllToBench() {
-    state.source = clampObjectPoint(state.source, SOURCE_SIZE);
+    state.source = clampObjectPoint(state.source, sourceSize());
     state.boxes.forEach((box) => clampObjectPoint(box, BOX_SIZE));
     state.wireNuts.forEach((nut) => clampObjectPoint(nut, WIRE_NUT_SIZE));
     state.conduits.forEach((conduit) => {
@@ -4331,12 +4418,14 @@
   }
 
   function sourceTerminalPoint(key) {
-    const offsets = { hot: { x: -35, y: 26 }, neutral: { x: 0, y: 26 }, ground: { x: 35, y: 26 } };
-    return { x: state.source.x + offsets[key].x, y: state.source.y + offsets[key].y };
+    const offsets = { hot: { x: -35, y: 17 }, neutral: { x: 0, y: 17 }, ground: { x: 35, y: 17 } };
+    const offset = rotateSourceOffset(offsets[key].x, offsets[key].y);
+    return { x: state.source.x + offset.x, y: state.source.y + offset.y };
   }
 
   function sourceConduitPoint() {
-    return { x: state.source.x, y: state.source.y + SOURCE_SIZE.height / 2 };
+    const offset = rotateSourceOffset(0, SOURCE_SIZE.height / 2);
+    return { x: state.source.x + offset.x, y: state.source.y + offset.y };
   }
 
   function sourceConduitInUse() {
@@ -4570,7 +4659,7 @@
   }
 
   function itemSize(type, id) {
-    if (type === "source") return SOURCE_SIZE;
+    if (type === "source") return sourceSize();
     if (type === "box") return BOX_SIZE;
     if (type === "device") return deviceSize(deviceById(id));
     if (type === "cable") return { width: 74, height: 34 };
@@ -4856,8 +4945,7 @@
 
   function renderContextMenu() {
     const selected = selectedItem();
-    const device = selected?.type === "device" ? deviceById(selected.id) : null;
-    const rotationControls = isRotatableDevice(device) || selected?.type === "conduit" ? `
+    const rotationControls = isRotatableSelection(selected) ? `
       <button type="button" data-action="rotate-selected-ccw" title="Rotate 90 degrees counterclockwise">${uiIcon("rotate-ccw")}<span>Rotate CCW</span></button>
       <button type="button" data-action="rotate-selected-cw" title="Rotate 90 degrees clockwise">${uiIcon("rotate-cw")}<span>Rotate CW</span></button>
     ` : "";
