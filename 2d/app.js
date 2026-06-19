@@ -579,6 +579,12 @@
       render();
       return;
     }
+    const cableTarget = romexTargetFromPointer(event.target, point);
+    if (cableTarget) {
+      selectItem("cable", cableTarget.id);
+      render();
+      return;
+    }
     const item = event.target.closest("[data-item-type]");
     if (!deviceLayerShouldWin(event.target)) {
       const conduitAt = conduitAtPoint(point);
@@ -655,6 +661,16 @@
     const node = event.target.closest(".grid-node");
     if (node && ["wire-end", "conduit-end", "cable-end"].includes(node.dataset.nodeType)) {
       startEndpointDrag(event, node);
+      return;
+    }
+    const cableTarget = romexTargetFromPointer(event.target, point);
+    if (cableTarget) {
+      const before = snapshotState();
+      if (!isSelected("cable", cableTarget.id)) {
+        selectItem("cable", cableTarget.id);
+      }
+      beginItemDrag(point, before, false);
+      render();
       return;
     }
     const item = event.target.closest("[data-item-type]");
@@ -1174,6 +1190,16 @@
       event.preventDefault();
       if (!isSelected("wireNut", landedNutId)) {
         selectItem("wireNut", landedNutId);
+      }
+      render();
+      showContextMenu(event.clientX, event.clientY);
+      return;
+    }
+    const cableTarget = romexTargetFromPointer(event.target, point);
+    if (cableTarget) {
+      event.preventDefault();
+      if (!isSelected("cable", cableTarget.id)) {
+        selectItem("cable", cableTarget.id);
       }
       render();
       showContextMenu(event.clientX, event.clientY);
@@ -4671,8 +4697,20 @@
 
   function shouldPreferWireSelection(point, item, lineWire) {
     if (!lineWire) return false;
+    if (item?.dataset.itemType === "cable") return false;
     if (!item || item.dataset.itemType === "box") return true;
     return false;
+  }
+
+  function romexTargetFromPointer(target, point) {
+    if (target?.closest?.("[data-node-type='wire-end'], .wire-detach-grip")) return null;
+    const direct = target?.closest?.("[data-cable-sheath], [data-item-type='cable']");
+    if (direct) {
+      const id = direct.dataset.cableSheath || direct.dataset.itemId;
+      const cable = cableById(id);
+      if (cable) return cable;
+    }
+    return cableAtPoint(point, 26);
   }
 
   function deviceLayerShouldWin(target) {
@@ -4710,6 +4748,23 @@
       }
     });
     return best?.conduit || null;
+  }
+
+  function cableAtPoint(point, maxDistance = 24) {
+    let best = null;
+    state.cables.forEach((cable) => {
+      const route = cableSheathRoutePoints(cable);
+      let distance = Infinity;
+      for (let index = 1; index < route.length; index += 1) {
+        distance = Math.min(distance, pointToSegmentDistance(point, route[index - 1], route[index]));
+      }
+      const boost = isSelected("cable", cable.id) ? 6 : 0;
+      if (distance <= maxDistance + boost) {
+        const score = distance - boost;
+        if (!best || score < best.score) best = { cable, score };
+      }
+    });
+    return best?.cable || null;
   }
 
   function nearestWireAtPoint(point, maxDistance = 10) {

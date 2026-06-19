@@ -2724,7 +2724,7 @@ button.device-face {
 .romex-hit-path {
   fill: none;
   stroke: rgba(0, 0, 0, 0);
-  stroke-width: 30px;
+  stroke-width: 46px;
   stroke-linecap: round;
   pointer-events: stroke;
   cursor: grab;
