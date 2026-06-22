@@ -2605,7 +2605,7 @@
 
   function renderRomexEndpoint(cable, end) {
     ensureCableEndpoints(cable);
-    const point = cableEndpointPoint(cable.id, end);
+    const point = cableEndpointGripPoint(cable, end);
     const connected = cable[end]?.connection ? "connected" : "";
     const selected = isSelected("cable", cable.id) ? "selected" : "";
     return `
@@ -2792,17 +2792,18 @@
       const visualPaths = wireVisualPaths(wire);
       return `${visualPaths.map((path) => `${selected ? `<path class="wire-select-halo ${wire.color}" d="${path}"></path>` : ""}<path class="wire-path ${wire.color} ${selected ? "selected" : ""}" data-wire-path="${wire.id}" data-item-type="wire" data-item-id="${wire.id}" d="${path}"></path>`).join("")}${renderWireCopperEnds(wire, selected)}`;
     });
-    return hitPaths.concat(cableSheaths, paths).join("");
+    return cableSheaths.concat(hitPaths, paths).join("");
   }
 
   function renderRomexSheath(cable) {
     ensureCableEndpoints(cable);
     const path = smoothPolylinePath(cableSheathRoutePoints(cable));
     if (!path) return "";
+    const hitPath = smoothPolylinePath(cableSheathHitRoutePoints(cable));
     const selected = isSelected("cable", cable.id);
     return `
       <path class="romex-sheath ${cable.type} ${selected ? "selected" : ""}" data-cable-sheath="${cable.id}" d="${path}"></path>
-      <path class="romex-hit-path" data-cable-sheath="${cable.id}" data-item-type="cable" data-item-id="${cable.id}" d="${path}"></path>
+      ${hitPath ? `<path class="romex-hit-path" data-cable-sheath="${cable.id}" data-item-type="cable" data-item-id="${cable.id}" d="${hitPath}"></path>` : ""}
     `;
   }
 
@@ -2835,6 +2836,22 @@
     ensureCableEndpoints(cable);
     if (!cable?.a || !cable?.b) return [];
     return removeDuplicatePoints([cableEndpointPoint(cable.id, "a"), cableEndpointPoint(cable.id, "b")]);
+  }
+
+  function cableSheathHitRoutePoints(cable) {
+    ensureCableEndpoints(cable);
+    if (!cable?.a || !cable?.b) return [];
+    const a = cableEndpointPoint(cable.id, "a");
+    const b = cableEndpointPoint(cable.id, "b");
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const length = Math.hypot(dx, dy);
+    if (length < 64) return [];
+    const inset = Math.min(38, Math.max(24, length * 0.18));
+    return [
+      { x: a.x + (dx / length) * inset, y: a.y + (dy / length) * inset },
+      { x: b.x - (dx / length) * inset, y: b.y - (dy / length) * inset }
+    ];
   }
 
   function ensureCableEndpoints(cable) {
@@ -4752,7 +4769,7 @@
   function cableAtPoint(point, maxDistance = 24) {
     let best = null;
     state.cables.forEach((cable) => {
-      const route = cableSheathRoutePoints(cable);
+      const route = cableSheathHitRoutePoints(cable);
       let distance = Infinity;
       for (let index = 1; index < route.length; index += 1) {
         distance = Math.min(distance, pointToSegmentDistance(point, route[index - 1], route[index]));
@@ -4764,6 +4781,43 @@
       }
     });
     return best?.cable || null;
+  }
+
+  function cableEndpointGripPoint(cable, end) {
+    ensureCableEndpoints(cable);
+    if (!cable?.a || !cable?.b) return { x: 0, y: 0 };
+    const cap = cableEndpointPoint(cable.id, end);
+    const other = cableEndpointPoint(cable.id, end === "a" ? "b" : "a");
+    let axisX = other.x - cap.x;
+    let axisY = other.y - cap.y;
+    const length = Math.hypot(axisX, axisY) || 1;
+    axisX /= length;
+    axisY /= length;
+    const perp = { x: -axisY, y: axisX };
+    const inset = 8;
+    const offset = 26;
+    const candidates = [
+      { x: cap.x + axisX * inset + perp.x * offset, y: cap.y + axisY * inset + perp.y * offset },
+      { x: cap.x + axisX * inset - perp.x * offset, y: cap.y + axisY * inset - perp.y * offset }
+    ];
+    const conductors = (cable.wireIds || []).map(wireById).filter(Boolean);
+    let best = candidates[0];
+    let bestScore = -Infinity;
+    candidates.forEach((candidate) => {
+      const score = conductors.reduce((minimum, wire) => {
+        const endpoint = wireEndpointPoint(wire.id, end);
+        const distance = pointToSegmentDistance(candidate, cap, endpoint);
+        return Math.min(minimum, distance);
+      }, Infinity);
+      if (score > bestScore) {
+        best = candidate;
+        bestScore = score;
+      }
+    });
+    return {
+      x: clamp(best.x, 12, GRID.width - 12),
+      y: clamp(best.y, 12, GRID.height - 12)
+    };
   }
 
   function nearestWireAtPoint(point, maxDistance = 10) {
@@ -4845,12 +4899,35 @@
     if (!endpoint || !jacketPoint) return null;
     if (Math.hypot(endpoint.x - jacketPoint.x, endpoint.y - jacketPoint.y) < 4) return null;
     const route = [endpoint];
+    const breakout = romexConductorBreakoutPoint(wire, end, jacketPoint);
     const context = wireEndpointBoxContext(wire, end, endpoint);
-    if (context.boxId && context.boxId !== SOURCE_CONDUIT_CONTEXT) {
+    if (context.boxId && context.boxId !== SOURCE_CONDUIT_CONTEXT && Math.hypot(endpoint.x - jacketPoint.x, endpoint.y - jacketPoint.y) > 46) {
       route.push(preferredBoxExitPoint(context.boxId, endpoint, jacketPoint, wire[end].connection, wire, end));
     }
-    route.push(jacketPoint);
+    route.push(breakout);
     return removeDuplicatePoints(route);
+  }
+
+  function romexConductorBreakoutPoint(wire, end, cap) {
+    const cable = wire?.cableId ? cableById(wire.cableId) : null;
+    ensureCableEndpoints(cable);
+    if (!cable?.a || !cable?.b) return cap;
+    const other = cableEndpointPoint(cable.id, end === "a" ? "b" : "a");
+    let axisX = other.x - cap.x;
+    let axisY = other.y - cap.y;
+    const axisLength = Math.hypot(axisX, axisY) || 1;
+    axisX /= axisLength;
+    axisY /= axisLength;
+    const perp = { x: -axisY, y: axisX };
+    const index = Math.max(0, (cable.wireIds || []).indexOf(wire.id));
+    const count = Math.max(1, cable.wireIds?.length || 1);
+    const spacing = count >= 4 ? 8 : 10;
+    const spread = (index - (count - 1) / 2) * spacing;
+    const mouthOffset = count >= 4 ? 15 : 13;
+    return {
+      x: cap.x + axisX * mouthOffset + perp.x * spread,
+      y: cap.y + axisY * mouthOffset + perp.y * spread
+    };
   }
 
   function wireRoutePoints(wire) {
