@@ -2785,13 +2785,12 @@
     const wires = state.wires.filter((wire) => isSelected("wire", wire.id) === selectedOnly);
     const cableSheaths = selectedOnly ? [] : state.cables.map(renderRomexSheath);
     const hitPaths = selectedOnly ? [] : state.wires.map((wire) => {
-      const path = wireHitPath(wire);
-      return path ? `<path class="wire-hit-path" data-wire-path="${wire.id}" data-item-type="wire" data-item-id="${wire.id}" d="${path}"></path>` : "";
+      return wireHitPaths(wire).map((path) => `<path class="wire-hit-path" data-wire-path="${wire.id}" data-item-type="wire" data-item-id="${wire.id}" d="${path}"></path>`).join("");
     });
     const paths = wires.map((wire) => {
-      const path = wirePath(wire);
       const selected = isSelected("wire", wire.id);
-      return `${selected ? `<path class="wire-select-halo ${wire.color}" d="${path}"></path>` : ""}<path class="wire-path ${wire.color} ${selected ? "selected" : ""}" data-wire-path="${wire.id}" data-item-type="wire" data-item-id="${wire.id}" d="${path}"></path>${renderWireCopperEnds(wire, selected)}`;
+      const visualPaths = wireVisualPaths(wire);
+      return `${visualPaths.map((path) => `${selected ? `<path class="wire-select-halo ${wire.color}" d="${path}"></path>` : ""}<path class="wire-path ${wire.color} ${selected ? "selected" : ""}" data-wire-path="${wire.id}" data-item-type="wire" data-item-id="${wire.id}" d="${path}"></path>`).join("")}${renderWireCopperEnds(wire, selected)}`;
     });
     return hitPaths.concat(cableSheaths, paths).join("");
   }
@@ -4710,7 +4709,7 @@
       const cable = cableById(id);
       if (cable) return cable;
     }
-    return cableAtPoint(point, 26);
+    return cableAtPoint(point, 16);
   }
 
   function deviceLayerShouldWin(target) {
@@ -4786,11 +4785,12 @@
   }
 
   function distanceToWire(point, wire) {
-    const samples = sampleWirePath(wire, 8);
     let best = Infinity;
-    for (let index = 1; index < samples.length; index += 1) {
-      best = Math.min(best, pointToSegmentDistance(point, samples[index - 1], samples[index]));
-    }
+    sampleWireVisualPaths(wire, 8).forEach((samples) => {
+      for (let index = 1; index < samples.length; index += 1) {
+        best = Math.min(best, pointToSegmentDistance(point, samples[index - 1], samples[index]));
+      }
+    });
     return best;
   }
 
@@ -4804,15 +4804,53 @@
     return points;
   }
 
-  function wireHitPath(wire) {
-    const points = sampleWirePath(wire, 10).slice(5, -5);
-    if (points.length < 2) return "";
-    const [first, ...rest] = points;
-    return `M ${first.x} ${first.y} ${rest.map((point) => `L ${point.x} ${point.y}`).join(" ")}`;
+  function wireHitPaths(wire) {
+    return sampleWireVisualPaths(wire, 10)
+      .map((points) => points.slice(2, -2))
+      .filter((points) => points.length >= 2)
+      .map((points) => {
+        const [first, ...rest] = points;
+        return `M ${first.x} ${first.y} ${rest.map((point) => `L ${point.x} ${point.y}`).join(" ")}`;
+      });
   }
 
   function wirePath(wire) {
     return smoothPolylinePath(wireRoutePoints(wire));
+  }
+
+  function wireVisualPaths(wire) {
+    return wireVisualRouteSegments(wire)
+      .map((points) => smoothPolylinePath(points))
+      .filter(Boolean);
+  }
+
+  function wireVisualRouteSegments(wire) {
+    const cable = wire?.cableId ? cableById(wire.cableId) : null;
+    ensureCableEndpoints(cable);
+    if (!cable?.a || !cable?.b) {
+      return [wireRoutePoints(wire)];
+    }
+    const a = wireEndpointPoint(wire.id, "a");
+    const b = wireEndpointPoint(wire.id, "b");
+    const jacketA = cableEndpointPoint(cable.id, "a");
+    const jacketB = cableEndpointPoint(cable.id, "b");
+    const segments = [
+      exposedRomexConductorSegment(wire, "a", a, jacketA),
+      exposedRomexConductorSegment(wire, "b", b, jacketB)
+    ].filter(Boolean);
+    return segments;
+  }
+
+  function exposedRomexConductorSegment(wire, end, endpoint, jacketPoint) {
+    if (!endpoint || !jacketPoint) return null;
+    if (Math.hypot(endpoint.x - jacketPoint.x, endpoint.y - jacketPoint.y) < 4) return null;
+    const route = [endpoint];
+    const context = wireEndpointBoxContext(wire, end, endpoint);
+    if (context.boxId && context.boxId !== SOURCE_CONDUIT_CONTEXT) {
+      route.push(preferredBoxExitPoint(context.boxId, endpoint, jacketPoint, wire[end].connection, wire, end));
+    }
+    route.push(jacketPoint);
+    return removeDuplicatePoints(route);
   }
 
   function wireRoutePoints(wire) {
@@ -4853,6 +4891,25 @@
       }
     }
     return samples;
+  }
+
+  function sampleWireVisualPaths(wire, segmentSteps = 8) {
+    return wireVisualRouteSegments(wire)
+      .map((route) => {
+        if (route.length <= 2) return sampleCurve(route[0], route[1], Math.max(8, segmentSteps * 2));
+        const samples = [];
+        for (let index = 1; index < route.length; index += 1) {
+          const a = route[index - 1];
+          const b = route[index];
+          for (let step = 0; step <= segmentSteps; step += 1) {
+            if (index > 1 && step === 0) continue;
+            const t = step / segmentSteps;
+            samples.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+          }
+        }
+        return samples;
+      })
+      .filter((samples) => samples.length >= 2);
   }
 
   function smoothPolylinePath(points) {
@@ -4936,8 +4993,8 @@
   }
 
   function wireIntersectsRect(wire, rect) {
-    return sampleWirePath(wire, 10)
-      .some((point) => pointInRect(point, rect));
+    return sampleWireVisualPaths(wire, 10)
+      .some((samples) => samples.some((point) => pointInRect(point, rect)));
   }
 
   function selectedItem() {
